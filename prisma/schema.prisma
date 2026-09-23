@@ -1,0 +1,78 @@
+datasource db {
+  provider = "postgresql"
+  // アプリからの接続先（本番ではコネクションプール経由のURL）
+  url       = env("DATABASE_URL")
+  // マイグレーション用の直接接続先（ローカルでは DATABASE_URL と同じ値でよい）
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum CardStatus {
+  IDEA        // アイデア
+  IN_PROGRESS // 問題作成中
+  REVIEW      // レビュー中
+  COMPLETED   // 完成
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  createdCards  Card[]    @relation("AuthorCards")
+  assignedCards Card[]    @relation("AssigneeCards")
+  comments      Comment[]
+}
+
+model Card {
+  id                  String     @id @default(cuid())
+  title               String     // タイトル・概要
+  status              CardStatus @default(IDEA)
+  order               Int        @default(0) // カラム内の並び順
+
+  // 4択問題のフォーマット
+  questionText        String?    @db.Text // 問題文
+  option1             String?    // 選択肢 1
+  option2             String?    // 選択肢 2
+  option3             String?    // 選択肢 3
+  option4             String?    // 選択肢 4
+  correctOptionIndex  Int?       // 正解の番号 (1〜4)
+  explanation         String?    @db.Text // 解説・出展
+
+  // 作成者・担当者
+  authorId            String
+  author              User       @relation("AuthorCards", fields: [authorId], references: [id])
+  assignedToId        String?
+  assignedTo          User?      @relation("AssigneeCards", fields: [assignedToId], references: [id])
+
+  // リレーション
+  tags                Tag[]      @relation("CardToTag")
+  comments            Comment[]
+
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([status, order])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String?
+  cards     Card[]   @relation("CardToTag")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
