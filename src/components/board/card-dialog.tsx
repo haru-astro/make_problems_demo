@@ -174,7 +174,7 @@ export function CardDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl"
+        className="max-w-4xl"
         // 編集中に枠外をクリックしても閉じない（入力内容を失わないため）
         onInteractOutside={(event) => event.preventDefault()}
       >
@@ -186,7 +186,7 @@ export function CardDialog({
         </DialogHeader>
 
         <div className="thin-scrollbar -mx-1 flex-1 overflow-y-auto px-1">
-          <div className="grid gap-5 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="grid gap-5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             {/* 左: 問題本体 */}
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -346,7 +346,7 @@ export function CardDialog({
 
               <div className="space-y-2">
                 <Label>コメント（{card.comments.length}）</Label>
-                <div className="thin-scrollbar max-h-56 space-y-3 overflow-y-auto pr-1">
+                <div className="thin-scrollbar max-h-[22rem] min-h-40 space-y-3 overflow-y-auto rounded-lg border border-border bg-muted/30 p-2.5 pr-1">
                   {card.comments.length === 0 && (
                     <p className="text-xs text-muted-foreground">
                       レビューのコメントはまだありません。
@@ -388,7 +388,7 @@ export function CardDialog({
 
                 <div className="flex items-end gap-2">
                   <Textarea
-                    rows={2}
+                    rows={3}
                     className="min-h-0 text-xs"
                     placeholder={
                       currentUser

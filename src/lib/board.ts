@@ -52,7 +52,7 @@ export const OPTION_LABELS = ["1", "2", "3", "4"] as const;
 export type BoardUser = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
 };
 
 export type BoardTag = {

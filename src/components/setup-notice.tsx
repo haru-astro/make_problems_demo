@@ -3,9 +3,9 @@ import { Database } from "lucide-react";
 /** DBに接続できないときに表示するセットアップ手順 */
 export function SetupNotice({ message }: { message: string }) {
   const steps = [
-    ["1. PostgreSQL を起動", "docker compose up -d"],
-    ["2. テーブルを作成", "npx prisma migrate dev --name init"],
-    ["3. サンプルデータを投入", "npm run db:seed"],
+    ["1. PostgreSQL を起動", "brew services start postgresql@17"],
+    ["2. テーブルを作成", "npx prisma migrate deploy"],
+    ["3. デモデータを投入", "npm run db:seed"],
   ] as const;
 
   return (

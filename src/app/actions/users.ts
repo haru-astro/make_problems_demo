@@ -2,7 +2,6 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
@@ -38,24 +37,15 @@ export async function switchUser(userId: string): Promise<ActionResult> {
 
 const createUserSchema = z.object({
   name: z.string().trim().min(1, "名前を入力してください").max(60),
-  email: z.email("メールアドレスの形式が正しくありません"),
 });
 
 export async function createUser(input: unknown): Promise<ActionResult> {
   try {
     const data = createUserSchema.parse(input);
-    await prisma.user.create({
-      data: { name: data.name, email: data.email.toLowerCase() },
-    });
+    await prisma.user.create({ data: { name: data.name } });
     revalidatePath("/");
     return { ok: true };
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return { ok: false, error: "このメールアドレスは既に登録されています" };
-    }
     if (error instanceof z.ZodError) {
       return {
         ok: false,

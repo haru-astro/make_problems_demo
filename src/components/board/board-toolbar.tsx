@@ -75,7 +75,7 @@ export function BoardToolbar({
   return (
     <div className="space-y-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="mr-auto flex items-baseline gap-3">
+        <div className="flex items-baseline gap-3">
           <h1 className="text-lg font-semibold tracking-tight">作問ボード</h1>
           <p className="text-xs text-muted-foreground">
             全 {totalCount} 問 ・ 完成 {completedCount} 問
@@ -83,7 +83,12 @@ export function BoardToolbar({
           </p>
         </div>
 
-        <div className="relative">
+        <Button onClick={onAddCard} className="shadow">
+          <Plus />
+          カードを追加
+        </Button>
+
+        <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={filters.query}
@@ -142,11 +147,6 @@ export function BoardToolbar({
         <ThemeToggle />
 
         <MemberMenu users={users} currentUser={currentUser} />
-
-        <Button size="sm" onClick={onAddCard}>
-          <Plus />
-          カードを追加
-        </Button>
       </div>
 
       {tags.length > 0 && (

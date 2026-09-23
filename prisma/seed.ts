@@ -2,11 +2,7 @@ import { CardStatus, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const USERS = [
-  { name: "佐藤 みなみ", email: "minami@example.com" },
-  { name: "鈴木 健一", email: "kenichi@example.com" },
-  { name: "田中 あおい", email: "aoi@example.com" },
-];
+const USERS = [{ name: "佐藤 みなみ" }, { name: "鈴木 健一" }, { name: "田中 あおい" }];
 
 const TAGS = [
   { name: "太陽系", category: "分野" },
@@ -21,35 +17,35 @@ const TAGS = [
 type SeedCard = {
   title: string;
   status: CardStatus;
-  authorEmail: string;
-  assigneeEmail?: string;
+  author: string;
+  assignee?: string;
   tags: string[];
   questionText?: string;
   options?: [string, string, string, string];
   correctOptionIndex?: number;
   explanation?: string;
-  comments?: { authorEmail: string; content: string }[];
+  comments?: { author: string; content: string }[];
 };
 
 const CARDS: SeedCard[] = [
   {
     title: "HR図における主系列星の位置を問う問題",
     status: CardStatus.IDEA,
-    authorEmail: "minami@example.com",
+    author: "佐藤 みなみ",
     tags: ["恒星", "普通"],
   },
   {
     title: "系外惑星のトランジット法の原理",
     status: CardStatus.IDEA,
-    authorEmail: "kenichi@example.com",
-    assigneeEmail: "aoi@example.com",
+    author: "鈴木 健一",
+    assignee: "田中 あおい",
     tags: ["観測技術", "普通"],
   },
   {
     title: "恒星のスペクトル型と表面温度",
     status: CardStatus.IN_PROGRESS,
-    authorEmail: "aoi@example.com",
-    assigneeEmail: "aoi@example.com",
+    author: "田中 あおい",
+    assignee: "田中 あおい",
     tags: ["恒星", "易"],
     questionText: "次のスペクトル型のうち、表面温度が最も高い恒星はどれか。",
     options: ["O型", "A型", "G型", "M型"],
@@ -58,8 +54,8 @@ const CARDS: SeedCard[] = [
   {
     title: "年周視差から距離を求める問題",
     status: CardStatus.IN_PROGRESS,
-    authorEmail: "minami@example.com",
-    assigneeEmail: "minami@example.com",
+    author: "佐藤 みなみ",
+    assignee: "佐藤 みなみ",
     tags: ["観測技術", "普通"],
     questionText:
       "年周視差が 0.1 秒角と測定された恒星までの距離はおよそいくらか。",
@@ -67,7 +63,7 @@ const CARDS: SeedCard[] = [
     correctOptionIndex: 2,
     comments: [
       {
-        authorEmail: "kenichi@example.com",
+        author: "鈴木 健一",
         content:
           "距離 = 1 / 年周視差（秒角）であることを解説に書いておきたいです。",
       },
@@ -76,8 +72,8 @@ const CARDS: SeedCard[] = [
   {
     title: "ハッブル−ルメートルの法則",
     status: CardStatus.REVIEW,
-    authorEmail: "kenichi@example.com",
-    assigneeEmail: "minami@example.com",
+    author: "鈴木 健一",
+    assignee: "佐藤 みなみ",
     tags: ["銀河・宇宙論", "普通"],
     questionText:
       "ハッブル−ルメートルの法則が示す、遠方の銀河の後退速度と距離の関係として正しいものはどれか。",
@@ -92,12 +88,12 @@ const CARDS: SeedCard[] = [
       "後退速度 v と距離 d の間には v = H0 d の関係があり、比例係数 H0 をハッブル定数と呼ぶ。",
     comments: [
       {
-        authorEmail: "aoi@example.com",
+        author: "田中 あおい",
         content:
           "選択肢が「比例・反比例・2乗・一定」と機械的なので、1つは観測的な誤解に基づく文にしませんか。",
       },
       {
-        authorEmail: "minami@example.com",
+        author: "佐藤 みなみ",
         content: "賛成です。次の更新で差し替えます。",
       },
     ],
@@ -105,8 +101,8 @@ const CARDS: SeedCard[] = [
   {
     title: "地球型惑星の分類",
     status: CardStatus.REVIEW,
-    authorEmail: "aoi@example.com",
-    assigneeEmail: "kenichi@example.com",
+    author: "田中 あおい",
+    assignee: "鈴木 健一",
     tags: ["太陽系", "易"],
     questionText: "次の惑星のうち、地球型惑星に分類されるものはどれか。",
     options: ["水星", "木星", "土星", "天王星"],
@@ -117,8 +113,8 @@ const CARDS: SeedCard[] = [
   {
     title: "光年の定義",
     status: CardStatus.COMPLETED,
-    authorEmail: "minami@example.com",
-    assigneeEmail: "minami@example.com",
+    author: "佐藤 みなみ",
+    assignee: "佐藤 みなみ",
     tags: ["観測技術", "易"],
     questionText: "1光年の説明として正しいものはどれか。",
     options: [
@@ -134,8 +130,8 @@ const CARDS: SeedCard[] = [
   {
     title: "Ia型超新星の発生機構",
     status: CardStatus.COMPLETED,
-    authorEmail: "kenichi@example.com",
-    assigneeEmail: "aoi@example.com",
+    author: "鈴木 健一",
+    assignee: "田中 あおい",
     tags: ["恒星", "難"],
     questionText: "Ia型超新星の発生機構として正しいものはどれか。",
     options: [
@@ -162,7 +158,7 @@ async function main() {
   const users = await Promise.all(
     USERS.map((user) => prisma.user.create({ data: user })),
   );
-  const userByEmail = new Map(users.map((user) => [user.email, user]));
+  const userByName = new Map(users.map((user) => [user.name, user]));
 
   await prisma.tag.createMany({ data: TAGS });
   const tags = await prisma.tag.findMany();
@@ -171,11 +167,9 @@ async function main() {
   const orderByStatus = new Map<CardStatus, number>();
 
   for (const card of CARDS) {
-    const author = userByEmail.get(card.authorEmail);
-    if (!author) throw new Error(`作成者が見つかりません: ${card.authorEmail}`);
-    const assignee = card.assigneeEmail
-      ? userByEmail.get(card.assigneeEmail)
-      : null;
+    const author = userByName.get(card.author);
+    if (!author) throw new Error(`作成者が見つかりません: ${card.author}`);
+    const assignee = card.assignee ? userByName.get(card.assignee) : null;
 
     const order = orderByStatus.get(card.status) ?? 0;
     orderByStatus.set(card.status, order + 1);
@@ -203,10 +197,10 @@ async function main() {
         comments: card.comments
           ? {
               create: card.comments.map((comment) => {
-                const commenter = userByEmail.get(comment.authorEmail);
+                const commenter = userByName.get(comment.author);
                 if (!commenter) {
                   throw new Error(
-                    `コメント投稿者が見つかりません: ${comment.authorEmail}`,
+                    `コメント投稿者が見つかりません: ${comment.author}`,
                   );
                 }
                 return { content: comment.content, userId: commenter.id };

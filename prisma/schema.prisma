@@ -20,7 +20,8 @@ enum CardStatus {
 model User {
   id        String    @id @default(cuid())
   name      String
-  email     String    @unique
+  // 認証を導入するまでは未入力。将来 Cloudflare Access などの識別子を入れる
+  email     String?   @unique
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

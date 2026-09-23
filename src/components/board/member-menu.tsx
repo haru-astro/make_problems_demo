@@ -28,7 +28,6 @@ type MemberMenuProps = {
 export function MemberMenu({ users, currentUser }: MemberMenuProps) {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = React.useTransition();
 
@@ -45,12 +44,9 @@ export function MemberMenu({ users, currentUser }: MemberMenuProps) {
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createUser({ name, email });
+      const result = await createUser({ name });
       if (!result.ok) setError(result.error);
-      else {
-        setName("");
-        setEmail("");
-      }
+      else setName("");
     });
   }
 
@@ -99,12 +95,9 @@ export function MemberMenu({ users, currentUser }: MemberMenuProps) {
                   )}
                 >
                   <UserAvatar name={user.name} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{user.name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {user.name}
+                  </p>
                   {active && (
                     <span className="text-[11px] font-medium text-primary">
                       操作中
@@ -123,26 +116,20 @@ export function MemberMenu({ users, currentUser }: MemberMenuProps) {
           <Separator />
 
           <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="member-name">名前</Label>
-                <Input
-                  id="member-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="山田 太郎"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="member-email">メールアドレス</Label>
-                <Input
-                  id="member-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="taro@example.com"
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="member-name">名前</Label>
+              <Input
+                id="member-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="山田 太郎"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleCreate(event);
+                  }
+                }}
+              />
             </div>
 
             {error && (
@@ -155,7 +142,7 @@ export function MemberMenu({ users, currentUser }: MemberMenuProps) {
               type="submit"
               variant="secondary"
               size="sm"
-              disabled={isPending || !name.trim() || !email.trim()}
+              disabled={isPending || !name.trim()}
             >
               {isPending ? <Loader2 className="animate-spin" /> : <UserPlus />}
               メンバーを追加
