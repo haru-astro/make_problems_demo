@@ -1,7 +1,7 @@
 "use client";
 
 import { Draggable } from "@hello-pangea/dnd";
-import { CheckCircle2, CircleDashed, MessageSquare } from "lucide-react";
+import { CheckCircle2, CircleDashed, ImageIcon, MessageSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/avatar";
@@ -16,9 +16,16 @@ type CardItemProps = {
   card: BoardCard;
   index: number;
   onOpen: (cardId: string) => void;
+  /** 完成カラムでの通し番号（未完成の場合は null） */
+  questionNumber: number | null;
 };
 
-export function CardItem({ card, index, onOpen }: CardItemProps) {
+export function CardItem({
+  card,
+  index,
+  onOpen,
+  questionNumber,
+}: CardItemProps) {
   const complete = isQuestionComplete(card);
   const ratio = completionRatio(card);
 
@@ -46,6 +53,11 @@ export function CardItem({ card, index, onOpen }: CardItemProps) {
         >
           <div className="flex items-start justify-between gap-2">
             <p className="line-clamp-3 text-sm font-medium leading-snug">
+              {questionNumber !== null && (
+                <span className="mr-1.5 rounded bg-emerald-500/15 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  問{questionNumber}
+                </span>
+              )}
               {card.title}
             </p>
             {complete ? (
@@ -96,6 +108,15 @@ export function CardItem({ card, index, onOpen }: CardItemProps) {
                 <span className="inline-flex items-center gap-1">
                   <MessageSquare className="size-3.5" />
                   {card.commentCount}
+                </span>
+              )}
+              {card.images.length > 0 && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  title={`図版 ${card.images.length} 枚`}
+                >
+                  <ImageIcon className="size-3.5" />
+                  {card.images.length}
                 </span>
               )}
             </div>

@@ -61,6 +61,16 @@ export type BoardTag = {
   category: string | null;
 };
 
+export type BoardImage = {
+  id: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  size: number;
+  caption: string | null;
+  order: number;
+};
+
 export type BoardComment = {
   id: string;
   content: string;
@@ -83,11 +93,45 @@ export type BoardCard = {
   author: BoardUser;
   assignedTo: BoardUser | null;
   tags: BoardTag[];
+  images: BoardImage[];
   comments: BoardComment[];
   commentCount: number;
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * 「完成」カラムの並び順から問題番号を決める。
+ * 番号を保存せず毎回計算するため、並べ替えると自動的に振り直され、
+ * 複数人が同時に編集しても番号が衝突しない。
+ */
+export function questionNumbers(cards: BoardCard[]): Map<string, number> {
+  const completed = cards
+    .filter((card) => card.status === "COMPLETED")
+    .sort((a, b) => a.order - b.order);
+
+  return new Map(completed.map((card, index) => [card.id, index + 1]));
+}
+
+/** 正解番号の分布。4択の正解位置が偏っていないかの確認に使う */
+export function answerDistribution(cards: BoardCard[]) {
+  const counts = [0, 0, 0, 0];
+  let total = 0;
+
+  for (const card of cards) {
+    if (card.status !== "COMPLETED") continue;
+    const index = card.correctOptionIndex;
+    if (!index || index < 1 || index > 4) continue;
+    counts[index - 1] += 1;
+    total += 1;
+  }
+
+  const max = Math.max(...counts);
+  // 完成問題が十分あるのに特定の番号へ4割以上集中していたら偏りとみなす
+  const biased = total >= 8 && max / total > 0.4;
+
+  return { counts, total, biased };
+}
 
 /** 4択問題として必要な項目が埋まっているか */
 export function isQuestionComplete(card: BoardCard) {

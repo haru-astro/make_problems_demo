@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TagInput } from "@/components/board/tag-input";
+import { ImageAttachments } from "@/components/board/image-attachments";
 import { cn, formatDateTime } from "@/lib/utils";
 import {
   OPTION_LABELS,
@@ -48,6 +49,8 @@ type CardDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (cardId: string, status: CardStatus) => void;
+  /** 完成カラムでの通し番号（未完成の場合は null） */
+  questionNumber: number | null;
 };
 
 type FormState = {
@@ -86,6 +89,7 @@ export function CardDialog({
   open,
   onOpenChange,
   onStatusChange,
+  questionNumber,
 }: CardDialogProps) {
   const [form, setForm] = React.useState<FormState | null>(
     card ? toFormState(card) : null,
@@ -179,7 +183,14 @@ export function CardDialog({
         onInteractOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>カードの編集</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {questionNumber !== null && (
+              <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                問 {questionNumber}
+              </span>
+            )}
+            カードの編集
+          </DialogTitle>
           <DialogDescription>
             作成者 {card.author.name} ・ 更新 {formatDateTime(card.updatedAt)}
           </DialogDescription>
@@ -281,6 +292,12 @@ export function CardDialog({
                   onChange={(event) => update("explanation", event.target.value)}
                 />
               </div>
+
+              <ImageAttachments
+                cardId={card.id}
+                images={card.images}
+                onError={setError}
+              />
 
               {missing.length > 0 && (
                 <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 p-2 text-[11px] text-amber-700 dark:text-amber-300">

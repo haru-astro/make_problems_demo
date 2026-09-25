@@ -19,12 +19,15 @@ import {
 } from "@/components/board/board-toolbar";
 import {
   STATUS_ORDER,
+  answerDistribution,
   isQuestionComplete,
+  questionNumbers,
   type BoardCard,
   type BoardTag,
   type BoardUser,
 } from "@/lib/board";
 import { moveCard } from "@/app/actions/cards";
+import { exportCards } from "@/lib/csv";
 
 type BoardProps = {
   cards: BoardCard[];
@@ -61,7 +64,10 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
       serverCards
         .map(
           (card) =>
-            `${card.id}:${card.status}:${card.order}:${card.updatedAt}:${card.commentCount}`,
+            // 画像の増減やキャプション変更も検知する必要があるため署名に含める
+            `${card.id}:${card.status}:${card.order}:${card.updatedAt}:${card.commentCount}:${card.images
+              .map((image) => `${image.id}${image.caption ?? ""}`)
+              .join(",")}`,
         )
         .join("|"),
     [serverCards],
@@ -73,6 +79,10 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
   }
 
   const grouped = React.useMemo(() => group(cards), [cards]);
+
+  // 番号と正解分布は「完成」カラムの内容から毎回計算する
+  const numbers = React.useMemo(() => questionNumbers(cards), [cards]);
+  const distribution = React.useMemo(() => answerDistribution(cards), [cards]);
 
   const filtered = React.useMemo(() => {
     const keyword = filters.query.trim().toLowerCase();
@@ -219,6 +229,8 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
         visibleCount={visibleCount}
         totalCount={cards.length}
         completedCount={completedCount}
+        distribution={distribution}
+        onExportCsv={() => exportCards(cards)}
       />
 
       {users.length === 0 && (
@@ -238,6 +250,7 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
                 cards={filtered[status]}
                 onOpenCard={setOpenCardId}
                 onAddCard={(value) => setNewCardStatus(value)}
+                questionNumbers={numbers}
               />
             ))}
           </div>
@@ -252,6 +265,7 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
         open={Boolean(openCard)}
         onOpenChange={(open) => !open && setOpenCardId(null)}
         onStatusChange={handleStatusChange}
+        questionNumber={openCard ? (numbers.get(openCard.id) ?? null) : null}
       />
 
       <NewCardDialog

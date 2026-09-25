@@ -52,13 +52,33 @@ model Card {
   assignedTo          User?      @relation("AssigneeCards", fields: [assignedToId], references: [id])
 
   // リレーション
-  tags                Tag[]      @relation("CardToTag")
+  tags                Tag[]       @relation("CardToTag")
   comments            Comment[]
+  images              CardImage[]
 
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
   @@index([status, order])
+}
+
+/// 問題に添付する図版。本体はDBに保存し /api/images/[id] から配信する
+model CardImage {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  data      Bytes    // 画像データ本体
+  mimeType  String   // image/png など
+  width     Int?
+  height    Int?
+  size      Int      // バイト数
+  caption   String?  // キャプション・出典
+  order     Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([cardId, order])
 }
 
 model Tag {

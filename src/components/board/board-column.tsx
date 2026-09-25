@@ -14,6 +14,8 @@ type BoardColumnProps = {
   cards: BoardCard[];
   onOpenCard: (cardId: string) => void;
   onAddCard: (status: CardStatus) => void;
+  /** カードIDごとの問題番号 */
+  questionNumbers: Map<string, number>;
 };
 
 export function BoardColumn({
@@ -21,6 +23,7 @@ export function BoardColumn({
   cards,
   onOpenCard,
   onAddCard,
+  questionNumbers,
 }: BoardColumnProps) {
   const meta = STATUS_META[status];
 
@@ -67,6 +70,7 @@ export function BoardColumn({
                 card={card}
                 index={index}
                 onOpen={onOpenCard}
+                questionNumber={questionNumbers.get(card.id) ?? null}
               />
             ))}
             {provided.placeholder}

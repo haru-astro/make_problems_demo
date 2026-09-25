@@ -1,5 +1,7 @@
 import { CardStatus, PrismaClient } from "@prisma/client";
 
+import { hrDiagramPng } from "./demo-figure";
+
 const prisma = new PrismaClient();
 
 const USERS = [{ name: "佐藤 みなみ" }, { name: "鈴木 健一" }, { name: "田中 あおい" }];
@@ -150,6 +152,7 @@ async function main() {
   console.log("シードデータを投入します…");
 
   // 何度実行しても同じ状態になるよう、既存データを消してから投入する
+  await prisma.cardImage.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.card.deleteMany();
   await prisma.tag.deleteMany();
@@ -211,8 +214,29 @@ async function main() {
     });
   }
 
+  // デモ用の図版を1枚添付する（実際はブラウザからアップロードする）
+  const figureCard = await prisma.card.findFirst({
+    where: { title: { startsWith: "HR図" } },
+    select: { id: true },
+  });
+
+  if (figureCard) {
+    const png = hrDiagramPng();
+    await prisma.cardImage.create({
+      data: {
+        cardId: figureCard.id,
+        data: png,
+        mimeType: "image/png",
+        width: 520,
+        height: 380,
+        size: png.length,
+        caption: "HR図の模式図（横軸: 表面温度、縦軸: 光度）",
+      },
+    });
+  }
+
   console.log(
-    `完了: ユーザー ${users.length} 名 / タグ ${tags.length} 件 / カード ${CARDS.length} 件`,
+    `完了: ユーザー ${users.length} 名 / タグ ${tags.length} 件 / カード ${CARDS.length} 件 / 図版 ${figureCard ? 1 : 0} 枚`,
   );
 }
 

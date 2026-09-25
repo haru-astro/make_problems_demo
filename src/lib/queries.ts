@@ -7,6 +7,19 @@ const cardInclude = {
   author: { select: { id: true, name: true, email: true } },
   assignedTo: { select: { id: true, name: true, email: true } },
   tags: { select: { id: true, name: true, category: true } },
+  // data（画像本体）は一覧では取得しない。配信は /api/images/[id] が行う
+  images: {
+    orderBy: { order: "asc" },
+    select: {
+      id: true,
+      mimeType: true,
+      width: true,
+      height: true,
+      size: true,
+      caption: true,
+      order: true,
+    },
+  },
   comments: {
     orderBy: { createdAt: "asc" },
     include: { user: { select: { id: true, name: true, email: true } } },
@@ -35,6 +48,7 @@ export function serializeCard(card: CardWithRelations): BoardCard {
     author: card.author,
     assignedTo: card.assignedTo,
     tags: card.tags,
+    images: card.images,
     comments: card.comments.map((comment) => ({
       id: comment.id,
       content: comment.content,

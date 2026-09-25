@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Search, X } from "lucide-react";
+import { Download, Plus, Search, TriangleAlert, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { MemberMenu } from "@/components/board/member-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { BoardTag, BoardUser } from "@/lib/board";
+import { OPTION_LABELS } from "@/lib/board";
 
 export const ALL = "__all__";
 export const UNASSIGNED_FILTER = "__unassigned__";
@@ -44,6 +45,9 @@ type BoardToolbarProps = {
   visibleCount: number;
   totalCount: number;
   completedCount: number;
+  /** 完成問題の正解番号の分布 */
+  distribution: { counts: number[]; total: number; biased: boolean };
+  onExportCsv: () => void;
 };
 
 export function BoardToolbar({
@@ -56,6 +60,8 @@ export function BoardToolbar({
   visibleCount,
   totalCount,
   completedCount,
+  distribution,
+  onExportCsv,
 }: BoardToolbarProps) {
   const hasFilters =
     filters.query.trim() !== "" ||
@@ -144,31 +150,111 @@ export function BoardToolbar({
           </Button>
         )}
 
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExportCsv}
+          disabled={completedCount === 0}
+          title="完成した問題を番号順に CSV で書き出します（図版は含まれません）"
+        >
+          <Download />
+          CSV出力
+        </Button>
+
         <ThemeToggle />
 
         <MemberMenu users={users} currentUser={currentUser} />
       </div>
 
-      {tags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-muted-foreground">タグ:</span>
-          {tags.map((tag) => {
-            const active = filters.tagIds.includes(tag.id);
-            return (
-              <button key={tag.id} type="button" onClick={() => toggleTag(tag.id)}>
-                <Badge
-                  variant={active ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer transition",
-                    active ? "ring-1 ring-primary/40" : "hover:border-primary/50",
-                  )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tags.length > 0 && (
+          <>
+            <span className="text-[11px] text-muted-foreground">タグ:</span>
+            {tags.map((tag) => {
+              const active = filters.tagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
                 >
-                  {tag.name}
-                </Badge>
-              </button>
-            );
-          })}
-        </div>
+                  <Badge
+                    variant={active ? "default" : "outline"}
+                    className={cn(
+                      "cursor-pointer transition",
+                      active ? "ring-1 ring-primary/40" : "hover:border-primary/50",
+                    )}
+                  >
+                    {tag.name}
+                  </Badge>
+                </button>
+              );
+            })}
+          </>
+        )}
+
+        <AnswerBalance distribution={distribution} />
+      </div>
+    </div>
+  );
+}
+
+/** 完成問題の正解位置の偏りを表示する */
+function AnswerBalance({
+  distribution,
+}: {
+  distribution: { counts: number[]; total: number; biased: boolean };
+}) {
+  const { counts, total, biased } = distribution;
+
+  if (total === 0) {
+    return (
+      <span className="ml-auto text-[11px] text-muted-foreground">
+        正解の分布: 完成問題がありません
+      </span>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "ml-auto flex items-center gap-2 rounded-md px-2 py-1",
+        biased && "bg-amber-500/10",
+      )}
+      title={
+        biased
+          ? "正解の位置が特定の番号に偏っています。選択肢の並べ替えを検討してください"
+          : "完成問題の正解番号の分布"
+      }
+    >
+      <span className="text-[11px] text-muted-foreground">正解の分布:</span>
+      {OPTION_LABELS.map((label, index) => {
+        const count = counts[index];
+        const share = count / total;
+        return (
+          <span
+            key={label}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground"
+          >
+            {label}
+            <span className="inline-block h-1.5 w-8 overflow-hidden rounded-full bg-muted">
+              <span
+                className={cn(
+                  "block h-full rounded-full",
+                  biased && share > 0.4 ? "bg-amber-500" : "bg-primary/60",
+                )}
+                style={{ width: `${Math.round(share * 100)}%` }}
+              />
+            </span>
+            <span className="tabular-nums">{count}</span>
+          </span>
+        );
+      })}
+      {biased && (
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+          <TriangleAlert className="size-3" />
+          偏りあり
+        </span>
       )}
     </div>
   );
