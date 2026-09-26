@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MemberMenu } from "@/components/board/member-menu";
+import { BulkDeleteDialog } from "@/components/board/bulk-delete-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { BoardTag, BoardUser } from "@/lib/board";
@@ -45,6 +46,8 @@ type BoardToolbarProps = {
   visibleCount: number;
   totalCount: number;
   completedCount: number;
+  /** 完成したが使用しない問題の件数 */
+  excludedCount: number;
   /** 完成問題の正解番号の分布 */
   distribution: { counts: number[]; total: number; biased: boolean };
   onExportCsv: () => void;
@@ -60,6 +63,7 @@ export function BoardToolbar({
   visibleCount,
   totalCount,
   completedCount,
+  excludedCount,
   distribution,
   onExportCsv,
 }: BoardToolbarProps) {
@@ -85,6 +89,7 @@ export function BoardToolbar({
           <h1 className="text-lg font-semibold tracking-tight">作問ボード</h1>
           <p className="text-xs text-muted-foreground">
             全 {totalCount} 問 ・ 完成 {completedCount} 問
+            {excludedCount > 0 && `（使用しない ${excludedCount} 問）`}
             {hasFilters && ` ・ 表示中 ${visibleCount} 問`}
           </p>
         </div>
@@ -160,6 +165,12 @@ export function BoardToolbar({
           <Download />
           CSV出力
         </Button>
+
+        <BulkDeleteDialog
+          completedCount={completedCount}
+          excludedCount={excludedCount}
+          onExportCsv={onExportCsv}
+        />
 
         <ThemeToggle />
 

@@ -27,6 +27,8 @@ type SeedCard = {
   correctOptionIndex?: number;
   explanation?: string;
   comments?: { author: string; content: string }[];
+  /** 同じ値を持つカード同士を1つの大問（セット）にする */
+  group?: string;
 };
 
 const CARDS: SeedCard[] = [
@@ -113,6 +115,45 @@ const CARDS: SeedCard[] = [
       "地球型惑星は水星・金星・地球・火星の4つで、岩石を主成分とし密度が大きい。",
   },
   {
+    title: "連星の公転周期と軌道の大きさ",
+    status: CardStatus.COMPLETED,
+    author: "田中 あおい",
+    assignee: "田中 あおい",
+    tags: ["恒星", "難"],
+    group: "連星の質量",
+    questionText:
+      "ケプラーの第3法則によると、連星系の公転周期の2乗は何に比例するか。",
+    options: [
+      "軌道長半径の3乗",
+      "軌道長半径の2乗",
+      "2星の質量の和の2乗",
+      "軌道離心率の3乗",
+    ],
+    correctOptionIndex: 1,
+    explanation:
+      "連星系では P^2 = a^3 /(M1 + M2)（P: 年、a: 天文単位、質量: 太陽質量）が成り立つ。",
+  },
+  {
+    title: "分光連星の視線速度から質量比を求める",
+    status: CardStatus.COMPLETED,
+    author: "田中 あおい",
+    assignee: "鈴木 健一",
+    tags: ["恒星", "難"],
+    group: "連星の質量",
+    questionText:
+      "分光連星において、星Aと星Bの視線速度の振幅の比が 2:1 であった。星Aと星Bの質量比 mA:mB はいくらか。",
+    options: ["1:2", "2:1", "1:4", "4:1"],
+    correctOptionIndex: 1,
+    explanation:
+      "重心のまわりの運動では mA・KA = mB・KB が成り立ち、速度振幅は質量に反比例する。KA:KB = 2:1 なので mA:mB = 1:2。",
+    comments: [
+      {
+        author: "鈴木 健一",
+        content: "前問とセットなので、冊子では続けて出題されるように並べています。",
+      },
+    ],
+  },
+  {
     title: "光年の定義",
     status: CardStatus.COMPLETED,
     author: "佐藤 みなみ",
@@ -155,6 +196,7 @@ async function main() {
   await prisma.cardImage.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.card.deleteMany();
+  await prisma.cardGroup.deleteMany();
   await prisma.tag.deleteMany();
   await prisma.user.deleteMany();
 
@@ -168,6 +210,7 @@ async function main() {
   const tagByName = new Map(tags.map((tag) => [tag.name, tag]));
 
   const orderByStatus = new Map<CardStatus, number>();
+  const groupMembers = new Map<string, string[]>();
 
   for (const card of CARDS) {
     const author = userByName.get(card.author);
@@ -177,7 +220,7 @@ async function main() {
     const order = orderByStatus.get(card.status) ?? 0;
     orderByStatus.set(card.status, order + 1);
 
-    await prisma.card.create({
+    const created = await prisma.card.create({
       data: {
         title: card.title,
         status: card.status,
@@ -212,6 +255,24 @@ async function main() {
           : undefined,
       },
     });
+
+    if (card.group) {
+      const members = groupMembers.get(card.group) ?? [];
+      members.push(created.id);
+      groupMembers.set(card.group, members);
+    }
+  }
+
+  // 同じ group を指定したカードを1つの大問にまとめる
+  for (const [, memberIds] of groupMembers) {
+    if (memberIds.length < 2) continue;
+    const group = await prisma.cardGroup.create({ data: {} });
+    for (const [groupOrder, id] of memberIds.entries()) {
+      await prisma.card.update({
+        where: { id },
+        data: { groupId: group.id, groupOrder },
+      });
+    }
   }
 
   // デモ用の図版を1枚添付する（実際はブラウザからアップロードする）

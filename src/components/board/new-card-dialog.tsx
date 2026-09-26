@@ -95,7 +95,7 @@ export function NewCardDialog({
             <Input
               id="new-card-title"
               autoFocus
-              placeholder="例) 消化器系ホルモンの働きを問う"
+              placeholder="例) 年周視差から恒星までの距離を求める"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />

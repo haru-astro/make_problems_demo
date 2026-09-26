@@ -1,13 +1,11 @@
 "use client";
 
 import { Droppable } from "@hello-pangea/dnd";
-import { Plus } from "lucide-react";
 import type { CardStatus } from "@prisma/client";
 
-import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/board/card-item";
 import { cn } from "@/lib/utils";
-import { STATUS_META, type BoardCard } from "@/lib/board";
+import { STATUS_META, type BoardCard, type QuestionNumber } from "@/lib/board";
 
 type BoardColumnProps = {
   status: CardStatus;
@@ -15,7 +13,7 @@ type BoardColumnProps = {
   onOpenCard: (cardId: string) => void;
   onAddCard: (status: CardStatus) => void;
   /** カードIDごとの問題番号 */
-  questionNumbers: Map<string, number>;
+  questionNumbers: Map<string, QuestionNumber>;
 };
 
 export function BoardColumn({
@@ -29,29 +27,19 @@ export function BoardColumn({
 
   return (
     <section className="flex w-[300px] shrink-0 flex-col rounded-xl bg-muted/50 p-2 sm:w-[320px]">
-      <header className="sticky top-0 z-10 flex items-start justify-between gap-2 rounded-t-xl bg-muted px-2 pb-2 pt-1">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className={cn("size-2 rounded-full", meta.dot)} />
-            <h2 className={cn("text-sm font-semibold", meta.header)}>
-              {meta.label}
-            </h2>
-            <span className="rounded-full bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              {cards.length}
-            </span>
-          </div>
-          <p className="mt-0.5 pl-4 text-[11px] text-muted-foreground">
-            {meta.description}
-          </p>
+      <header className="sticky top-0 z-10 rounded-t-xl bg-muted px-2 pb-2 pt-1">
+        <div className="flex items-center gap-2">
+          <span className={cn("size-2 rounded-full", meta.dot)} />
+          <h2 className={cn("text-sm font-semibold", meta.header)}>
+            {meta.label}
+          </h2>
+          <span className="rounded-full bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+            {cards.length}
+          </span>
         </div>
-        <Button
-          variant="ghost"
-          size="iconSm"
-          onClick={() => onAddCard(status)}
-          aria-label={`${meta.label}にカードを追加`}
-        >
-          <Plus />
-        </Button>
+        <p className="mt-0.5 pl-4 text-[11px] text-muted-foreground">
+          {meta.description}
+        </p>
       </header>
 
       <Droppable droppableId={status}>

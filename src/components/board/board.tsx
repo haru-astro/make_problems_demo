@@ -65,7 +65,7 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
         .map(
           (card) =>
             // 画像の増減やキャプション変更も検知する必要があるため署名に含める
-            `${card.id}:${card.status}:${card.order}:${card.updatedAt}:${card.commentCount}:${card.images
+            `${card.id}:${card.status}:${card.order}:${card.excluded}:${card.groupId}:${card.groupOrder}:${card.updatedAt}:${card.commentCount}:${card.images
               .map((image) => `${image.id}${image.caption ?? ""}`)
               .join(",")}`,
         )
@@ -129,6 +129,9 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
   );
   const completedCount = cards.filter(
     (card) => card.status === CardStatus.COMPLETED,
+  ).length;
+  const excludedCount = cards.filter(
+    (card) => card.status === CardStatus.COMPLETED && card.excluded,
   ).length;
 
   /** フィルタ表示中でも正しい位置に挿入できるよう、実データ上の index を求める */
@@ -229,6 +232,7 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
         visibleCount={visibleCount}
         totalCount={cards.length}
         completedCount={completedCount}
+        excludedCount={excludedCount}
         distribution={distribution}
         onExportCsv={() => exportCards(cards)}
       />
@@ -266,6 +270,7 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
         onOpenChange={(open) => !open && setOpenCardId(null)}
         onStatusChange={handleStatusChange}
         questionNumber={openCard ? (numbers.get(openCard.id) ?? null) : null}
+        allCards={cards}
       />
 
       <NewCardDialog

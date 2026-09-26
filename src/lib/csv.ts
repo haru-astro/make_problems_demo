@@ -2,6 +2,8 @@ import { OPTION_LABELS, questionNumbers, type BoardCard } from "@/lib/board";
 
 const HEADERS = [
   "問題番号",
+  "大問番号",
+  "小問番号",
   "タイトル",
   "問題文",
   "選択肢1",
@@ -28,8 +30,14 @@ export function buildCsv(cards: BoardCard[]) {
 
   const rows = cards
     .filter((card) => numbers.has(card.id))
-    .sort((a, b) => (numbers.get(a.id) ?? 0) - (numbers.get(b.id) ?? 0))
+    .sort((a, b) => {
+      const left = numbers.get(a.id);
+      const right = numbers.get(b.id);
+      if (!left || !right) return 0;
+      return left.major - right.major || (left.minor ?? 0) - (right.minor ?? 0);
+    })
     .map((card) => {
+      const number = numbers.get(card.id);
       const options = [card.option1, card.option2, card.option3, card.option4];
       const answerIndex = card.correctOptionIndex;
       const answerText =
@@ -38,7 +46,9 @@ export function buildCsv(cards: BoardCard[]) {
           : "";
 
       return [
-        numbers.get(card.id) ?? "",
+        number?.label ?? "",
+        number?.major ?? "",
+        number?.minor ?? "",
         card.title,
         card.questionText ?? "",
         options[0] ?? "",

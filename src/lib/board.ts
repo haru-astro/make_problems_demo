@@ -90,6 +90,12 @@ export type BoardCard = {
   option4: string | null;
   correctOptionIndex: number | null;
   explanation: string | null;
+  /** 完成したが出題には使わない問題 */
+  excluded: boolean;
+  /** 大問としてまとめたセットのID（単独問題は null） */
+  groupId: string | null;
+  /** セット内の並び順 */
+  groupOrder: number;
   author: BoardUser;
   assignedTo: BoardUser | null;
   tags: BoardTag[];
@@ -100,17 +106,68 @@ export type BoardCard = {
   updatedAt: string;
 };
 
+/** 問題番号。セット（大問）の場合は枝番が付く */
+export type QuestionNumber = {
+  /** 大問番号 */
+  major: number;
+  /** 大問の中の小問番号（単独問題は null） */
+  minor: number | null;
+  /** 表示用の文字列（例: 問3 / 問3-(1)） */
+  label: string;
+};
+
 /**
  * 「完成」カラムの並び順から問題番号を決める。
  * 番号を保存せず毎回計算するため、並べ替えると自動的に振り直され、
  * 複数人が同時に編集しても番号が衝突しない。
+ * セットにまとめたカードは1つの大問として扱い、小問に枝番を振る。
+ * 「使用しない」にした問題は採番から外れる。
  */
-export function questionNumbers(cards: BoardCard[]): Map<string, number> {
-  const completed = cards
-    .filter((card) => card.status === "COMPLETED")
+export function questionNumbers(
+  cards: BoardCard[],
+): Map<string, QuestionNumber> {
+  const target = cards
+    .filter((card) => card.status === "COMPLETED" && !card.excluded)
     .sort((a, b) => a.order - b.order);
 
-  return new Map(completed.map((card, index) => [card.id, index + 1]));
+  const result = new Map<string, QuestionNumber>();
+  const majorByGroup = new Map<string, number>();
+  const minorByGroup = new Map<string, number>();
+  let major = 0;
+
+  for (const card of target) {
+    if (!card.groupId) {
+      major += 1;
+      result.set(card.id, { major, minor: null, label: `問${major}` });
+      continue;
+    }
+
+    // セットは最初に現れた位置で大問番号を確定し、以降は枝番だけ進める
+    let groupMajor = majorByGroup.get(card.groupId);
+    if (groupMajor === undefined) {
+      major += 1;
+      groupMajor = major;
+      majorByGroup.set(card.groupId, groupMajor);
+    }
+
+    const minor = (minorByGroup.get(card.groupId) ?? 0) + 1;
+    minorByGroup.set(card.groupId, minor);
+
+    result.set(card.id, {
+      major: groupMajor,
+      minor,
+      label: `問${groupMajor}-(${minor})`,
+    });
+  }
+
+  return result;
+}
+
+/** セットの中で一緒に扱うカードを取り出す（セット内の順に並べる） */
+export function groupMembers(cards: BoardCard[], groupId: string) {
+  return cards
+    .filter((card) => card.groupId === groupId)
+    .sort((a, b) => a.groupOrder - b.groupOrder || a.order - b.order);
 }
 
 /** 正解番号の分布。4択の正解位置が偏っていないかの確認に使う */
@@ -119,7 +176,7 @@ export function answerDistribution(cards: BoardCard[]) {
   let total = 0;
 
   for (const card of cards) {
-    if (card.status !== "COMPLETED") continue;
+    if (card.status !== "COMPLETED" || card.excluded) continue;
     const index = card.correctOptionIndex;
     if (!index || index < 1 || index > 4) continue;
     counts[index - 1] += 1;

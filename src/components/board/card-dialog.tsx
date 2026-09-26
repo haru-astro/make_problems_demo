@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import { CardStatus } from "@prisma/client";
-import { Loader2, Send, Trash2, TriangleAlert } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Link2,
+  Link2Off,
+  Loader2,
+  Send,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 
 import {
   Dialog,
@@ -32,11 +41,19 @@ import {
   OPTION_LABELS,
   STATUS_META,
   STATUS_ORDER,
+  groupMembers,
   type BoardCard,
   type BoardTag,
   type BoardUser,
+  type QuestionNumber,
 } from "@/lib/board";
-import { deleteCard, updateCard } from "@/app/actions/cards";
+import {
+  deleteCard,
+  linkCards,
+  setCardExcluded,
+  unlinkCard,
+  updateCard,
+} from "@/app/actions/cards";
 import { addComment, deleteComment } from "@/app/actions/comments";
 
 const UNASSIGNED = "__unassigned__";
@@ -49,8 +66,10 @@ type CardDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (cardId: string, status: CardStatus) => void;
-  /** 完成カラムでの通し番号（未完成の場合は null） */
-  questionNumber: number | null;
+  /** 完成カラムでの問題番号（採番対象外は null） */
+  questionNumber: QuestionNumber | null;
+  /** セットを組む相手を選ぶために全カードを受け取る */
+  allCards: BoardCard[];
 };
 
 type FormState = {
@@ -90,6 +109,7 @@ export function CardDialog({
   onOpenChange,
   onStatusChange,
   questionNumber,
+  allCards,
 }: CardDialogProps) {
   const [form, setForm] = React.useState<FormState | null>(
     card ? toFormState(card) : null,
@@ -99,6 +119,7 @@ export function CardDialog({
   const [isSaving, startSaving] = React.useTransition();
   const [isCommenting, startCommenting] = React.useTransition();
   const [isDeleting, startDeleting] = React.useTransition();
+  const [isLinking, startLinking] = React.useTransition();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const cardId = card?.id ?? null;
@@ -161,6 +182,13 @@ export function CardDialog({
     });
   }
 
+  const members = card.groupId ? groupMembers(allCards, card.groupId) : [card];
+  const linkCandidates = allCards.filter(
+    (candidate) =>
+      candidate.id !== card.id &&
+      (!card.groupId || candidate.groupId !== card.groupId),
+  );
+
   const optionValues = [
     form.option1,
     form.option2,
@@ -186,7 +214,7 @@ export function CardDialog({
           <DialogTitle className="flex items-center gap-2">
             {questionNumber !== null && (
               <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                問 {questionNumber}
+                {questionNumber.label}
               </span>
             )}
             カードの編集
@@ -214,7 +242,7 @@ export function CardDialog({
                 <Textarea
                   id="card-question"
                   rows={4}
-                  placeholder="例) 次のうち、〇〇に関する説明として正しいものはどれか。"
+                  placeholder="例) 次のうち、恒星の進化に関する説明として正しいものはどれか。"
                   value={form.questionText}
                   onChange={(event) =>
                     update("questionText", event.target.value)
@@ -287,7 +315,7 @@ export function CardDialog({
                 <Textarea
                   id="card-explanation"
                   rows={3}
-                  placeholder="正解の理由、参考文献やページ番号など"
+                  placeholder="正解の理由、出典（教科書・論文・観測データなど）"
                   value={form.explanation}
                   onChange={(event) => update("explanation", event.target.value)}
                 />
@@ -326,6 +354,122 @@ export function CardDialog({
                         {STATUS_META[status].label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {card.status === "COMPLETED" && (
+                <button
+                  type="button"
+                  disabled={isLinking}
+                  onClick={() =>
+                    startLinking(async () => {
+                      const result = await setCardExcluded({
+                        cardId: card.id,
+                        excluded: !card.excluded,
+                      });
+                      if (!result.ok) setError(result.error);
+                    })
+                  }
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+                    card.excluded
+                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                      : "border-border hover:bg-accent",
+                  )}
+                >
+                  {card.excluded ? (
+                    <EyeOff className="size-4 shrink-0" />
+                  ) : (
+                    <Eye className="size-4 shrink-0" />
+                  )}
+                  <span className="flex-1">
+                    {card.excluded
+                      ? "この問題は使用しません（採番とCSVから除外中）"
+                      : "この問題を使用しない"}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {card.excluded ? "戻す" : "除外"}
+                  </span>
+                </button>
+              )}
+
+              <div className="space-y-2">
+                <Label>セット（大問）</Label>
+                {members.length > 1 ? (
+                  <div className="space-y-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      この {members.length} 問は1つの大問として採番されます
+                    </p>
+                    <ul className="space-y-1">
+                      {members.map((member, index) => (
+                        <li
+                          key={member.id}
+                          className={cn(
+                            "flex items-center gap-1.5 text-xs",
+                            member.id === card.id && "font-medium",
+                          )}
+                        >
+                          <span className="text-muted-foreground">
+                            ({index + 1})
+                          </span>
+                          <span className="truncate">{member.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isLinking}
+                      onClick={() =>
+                        startLinking(async () => {
+                          const result = await unlinkCard(card.id);
+                          if (!result.ok) setError(result.error);
+                        })
+                      }
+                    >
+                      <Link2Off />
+                      このカードをセットから外す
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    単独の問題です。下から相手を選ぶと1つの大問になります。
+                  </p>
+                )}
+
+                <Select
+                  value=""
+                  onValueChange={(targetCardId) =>
+                    startLinking(async () => {
+                      const result = await linkCards({
+                        cardId: card.id,
+                        targetCardId,
+                      });
+                      if (!result.ok) setError(result.error);
+                    })
+                  }
+                >
+                  <SelectTrigger className="text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Link2 className="size-3.5" />
+                      セットにするカードを選ぶ
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {linkCandidates.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        選べるカードがありません
+                      </div>
+                    ) : (
+                      linkCandidates.map((candidate) => (
+                        <SelectItem key={candidate.id} value={candidate.id}>
+                          {STATUS_META[candidate.status].label}：
+                          {candidate.title}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

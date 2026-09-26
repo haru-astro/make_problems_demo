@@ -1,7 +1,14 @@
 "use client";
 
 import { Draggable } from "@hello-pangea/dnd";
-import { CheckCircle2, CircleDashed, ImageIcon, MessageSquare } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleDashed,
+  EyeOff,
+  ImageIcon,
+  Link2,
+  MessageSquare,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/avatar";
@@ -10,14 +17,15 @@ import {
   completionRatio,
   isQuestionComplete,
   type BoardCard,
+  type QuestionNumber,
 } from "@/lib/board";
 
 type CardItemProps = {
   card: BoardCard;
   index: number;
   onOpen: (cardId: string) => void;
-  /** 完成カラムでの通し番号（未完成の場合は null） */
-  questionNumber: number | null;
+  /** 完成カラムでの問題番号（採番対象外は null） */
+  questionNumber: QuestionNumber | null;
 };
 
 export function CardItem({
@@ -48,6 +56,7 @@ export function CardItem({
           className={cn(
             "group cursor-pointer rounded-lg border border-border bg-card p-3 shadow-sm outline-none transition",
             "hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring",
+            card.excluded && "opacity-60",
             snapshot.isDragging && "rotate-[0.6deg] border-primary/60 shadow-lg",
           )}
         >
@@ -55,10 +64,18 @@ export function CardItem({
             <p className="line-clamp-3 text-sm font-medium leading-snug">
               {questionNumber !== null && (
                 <span className="mr-1.5 rounded bg-emerald-500/15 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                  問{questionNumber}
+                  {questionNumber.label}
                 </span>
               )}
-              {card.title}
+              {card.excluded && (
+                <span className="mr-1.5 inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] font-medium text-muted-foreground">
+                  <EyeOff className="size-3" />
+                  使用しない
+                </span>
+              )}
+              <span className={cn(card.excluded && "line-through")}>
+                {card.title}
+              </span>
             </p>
             {complete ? (
               <CheckCircle2
@@ -108,6 +125,15 @@ export function CardItem({
                 <span className="inline-flex items-center gap-1">
                   <MessageSquare className="size-3.5" />
                   {card.commentCount}
+                </span>
+              )}
+              {card.groupId && (
+                <span
+                  className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-300"
+                  title="他のカードとセット（大問）になっています"
+                >
+                  <Link2 className="size-3.5" />
+                  セット
                 </span>
               )}
               {card.images.length > 0 && (

@@ -189,6 +189,139 @@ export async function moveCard(input: unknown): Promise<ActionResult> {
   }
 }
 
+/** 完成したが出題には使わない問題として扱うかどうかを切り替える */
+export async function setCardExcluded(input: unknown): Promise<ActionResult> {
+  try {
+    const { cardId, excluded } = z
+      .object({ cardId: z.string().min(1), excluded: z.boolean() })
+      .parse(input);
+
+    await prisma.card.update({ where: { id: cardId }, data: { excluded } });
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * 2枚のカードを1つの大問（セット）としてまとめる。
+ * 相手がすでにセットに属していればそこへ合流し、どちらも単独なら新しいセットを作る。
+ */
+export async function linkCards(input: unknown): Promise<ActionResult> {
+  try {
+    const { cardId, targetCardId } = z
+      .object({ cardId: z.string().min(1), targetCardId: z.string().min(1) })
+      .parse(input);
+
+    if (cardId === targetCardId) {
+      return { ok: false, error: "同じカード同士はセットにできません" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const [card, target] = await Promise.all([
+        tx.card.findUnique({ where: { id: cardId }, select: { groupId: true } }),
+        tx.card.findUnique({
+          where: { id: targetCardId },
+          select: { groupId: true },
+        }),
+      ]);
+      if (!card || !target) throw new Error("カードが見つかりません");
+
+      const groupId =
+        target.groupId ??
+        card.groupId ??
+        (await tx.cardGroup.create({ data: {} })).id;
+
+      const members = await tx.card.findMany({
+        where: { groupId },
+        orderBy: { groupOrder: "asc" },
+        select: { id: true },
+      });
+      const ids = [...members.map((m) => m.id)];
+      for (const id of [cardId, targetCardId]) {
+        if (!ids.includes(id)) ids.push(id);
+      }
+
+      for (const [groupOrder, id] of ids.entries()) {
+        await tx.card.update({ where: { id }, data: { groupId, groupOrder } });
+      }
+    });
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** カードをセットから外す。残りが1枚だけになったらセット自体を解散する */
+export async function unlinkCard(cardId: string): Promise<ActionResult> {
+  try {
+    const id = z.string().min(1).parse(cardId);
+
+    await prisma.$transaction(async (tx) => {
+      const card = await tx.card.findUnique({
+        where: { id },
+        select: { groupId: true },
+      });
+      if (!card?.groupId) return;
+
+      const groupId = card.groupId;
+      await tx.card.update({
+        where: { id },
+        data: { groupId: null, groupOrder: 0 },
+      });
+
+      const rest = await tx.card.findMany({
+        where: { groupId },
+        orderBy: { groupOrder: "asc" },
+        select: { id: true },
+      });
+
+      if (rest.length <= 1) {
+        await tx.card.updateMany({
+          where: { groupId },
+          data: { groupId: null, groupOrder: 0 },
+        });
+        await tx.cardGroup.delete({ where: { id: groupId } });
+        return;
+      }
+
+      for (const [groupOrder, member] of rest.entries()) {
+        await tx.card.update({
+          where: { id: member.id },
+          data: { groupOrder },
+        });
+      }
+    });
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** 年度末の整理用に「完成」カラムのカードをまとめて削除する */
+export async function deleteCompletedCards(): Promise<
+  ActionResult & { deleted?: number }
+> {
+  try {
+    const result = await prisma.card.deleteMany({
+      where: { status: CardStatus.COMPLETED },
+    });
+
+    // 所属カードが無くなったセットを掃除する
+    await prisma.cardGroup.deleteMany({ where: { cards: { none: {} } } });
+
+    revalidatePath("/");
+    return { ok: true, deleted: result.count };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 export async function deleteCard(cardId: string): Promise<ActionResult> {
   try {
     await prisma.card.delete({ where: { id: z.string().min(1).parse(cardId) } });

@@ -45,6 +45,14 @@ model Card {
   correctOptionIndex  Int?       // 正解の番号 (1〜4)
   explanation         String?    @db.Text // 解説・出展
 
+  // 完成したが出題には使わない問題。採番とCSV出力から除外する
+  excluded            Boolean    @default(false)
+
+  // 大問としてまとめるセット（1つの大問に複数の小問）
+  groupId             String?
+  group               CardGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  groupOrder          Int        @default(0) // セット内の小問の順番
+
   // 作成者・担当者
   authorId            String
   author              User       @relation("AuthorCards", fields: [authorId], references: [id])
@@ -60,6 +68,14 @@ model Card {
   updatedAt           DateTime   @updatedAt
 
   @@index([status, order])
+}
+
+/// 1つの大問としてまとめた問題のセット
+model CardGroup {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  cards     Card[]
 }
 
 /// 問題に添付する図版。本体はDBに保存し /api/images/[id] から配信する
