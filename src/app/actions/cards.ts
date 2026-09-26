@@ -40,6 +40,8 @@ const updateCardSchema = z.object({
   explanation: optionalText,
   assignedToId: z.string().trim().nullable().optional(),
   tagNames: tagNamesSchema,
+  /** 編集を始めた時点の更新時刻。これが変わっていたら上書きしない */
+  expectedUpdatedAt: z.string().min(1),
 });
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -103,8 +105,10 @@ export async function updateCard(input: unknown): Promise<ActionResult> {
     const data = updateCardSchema.parse(input);
     const tags = await connectTags(data.tagNames);
 
-    await prisma.card.update({
-      where: { id: data.id },
+    // 開いたときから更新時刻が変わっていない場合だけ書き込む。
+    // 条件付きの更新なので、同時に保存しても片方しか通らない。
+    const updated = await prisma.card.updateMany({
+      where: { id: data.id, updatedAt: new Date(data.expectedUpdatedAt) },
       data: {
         title: data.title,
         questionText: data.questionText ?? null,
@@ -115,8 +119,28 @@ export async function updateCard(input: unknown): Promise<ActionResult> {
         correctOptionIndex: data.correctOptionIndex ?? null,
         explanation: data.explanation ?? null,
         assignedToId: data.assignedToId || null,
-        tags: { set: tags.map((tag) => ({ id: tag.id })) },
       },
+    });
+
+    if (updated.count === 0) {
+      const exists = await prisma.card.findUnique({
+        where: { id: data.id },
+        select: { id: true },
+      });
+      // 最新の内容を画面へ流し込めるよう、ここでも再取得させる
+      revalidatePath("/");
+      return {
+        ok: false,
+        error: exists
+          ? "他の人がこのカードを更新しました。最新の内容を読み込んでください"
+          : "カードが見つかりません",
+      };
+    }
+
+    // タグは updateMany では扱えないため、更新が通った側だけが書き換える
+    await prisma.card.update({
+      where: { id: data.id },
+      data: { tags: { set: tags.map((tag) => ({ id: tag.id })) } },
     });
 
     revalidatePath("/");

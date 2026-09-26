@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CardStatus } from "@prisma/client";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -89,6 +90,23 @@ type FormState = {
   tagNames: string[];
 };
 
+/** 入力内容がサーバー上の値から変わっているか（＝未保存の編集があるか） */
+function hasLocalEdits(form: FormState, card: BoardCard) {
+  const base = toFormState(card);
+  return (
+    form.title !== base.title ||
+    form.questionText !== base.questionText ||
+    form.option1 !== base.option1 ||
+    form.option2 !== base.option2 ||
+    form.option3 !== base.option3 ||
+    form.option4 !== base.option4 ||
+    form.correctOptionIndex !== base.correctOptionIndex ||
+    form.explanation !== base.explanation ||
+    form.assignedToId !== base.assignedToId ||
+    form.tagNames.join("\u0000") !== base.tagNames.join("\u0000")
+  );
+}
+
 function toFormState(card: BoardCard): FormState {
   return {
     title: card.title,
@@ -130,12 +148,24 @@ export function CardDialog({
 
   // 別のカードを開いたときはフォームを差し替える（レンダー中の状態調整）
   const [syncedCardId, setSyncedCardId] = React.useState(cardId);
+  const [baseUpdatedAt, setBaseUpdatedAt] = React.useState(
+    card?.updatedAt ?? null,
+  );
+
   if (syncedCardId !== cardId) {
     setSyncedCardId(cardId);
     setForm(card ? toFormState(card) : null);
+    setBaseUpdatedAt(card?.updatedAt ?? null);
     setError(null);
     setComment("");
     setConfirmDelete(false);
+  } else if (card && form && baseUpdatedAt !== card.updatedAt) {
+    // 自分の操作（スイッチやセット変更）で更新された場合は黙って追随し、
+    // 未保存の入力がある場合だけ警告を出す
+    if (!hasLocalEdits(form, card)) {
+      setForm(toFormState(card));
+      setBaseUpdatedAt(card.updatedAt);
+    }
   }
 
   if (!card || !form) return null;
@@ -150,6 +180,7 @@ export function CardDialog({
     startSaving(async () => {
       const result = await updateCard({
         id: card.id,
+        expectedUpdatedAt: baseUpdatedAt ?? card.updatedAt,
         title: form.title,
         questionText: form.questionText,
         option1: form.option1,
@@ -186,6 +217,7 @@ export function CardDialog({
     });
   }
 
+  const isStale = baseUpdatedAt !== null && baseUpdatedAt !== card.updatedAt;
   const members = card.groupId ? groupMembers(allCards, card.groupId) : [card];
   const linkCandidates = allCards.filter(
     (candidate) =>
@@ -227,6 +259,29 @@ export function CardDialog({
             作成者 {card.author.name} ・ 更新 {formatDateTime(card.updatedAt)}
           </DialogDescription>
         </DialogHeader>
+
+        {isStale && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2">
+            <AlertTriangle className="size-4 shrink-0 text-amber-700 dark:text-amber-300" />
+            <p className="min-w-0 flex-1 text-xs text-amber-800 dark:text-amber-200">
+              他の人がこのカードを更新しました。このまま保存すると相手の変更を
+              上書きしてしまうため、保存できません。
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!card) return;
+                setForm(toFormState(card));
+                setBaseUpdatedAt(card.updatedAt);
+                setError(null);
+              }}
+            >
+              最新の内容を読み込む
+            </Button>
+          </div>
+        )}
 
         <div className="thin-scrollbar -mx-1 flex-1 overflow-y-auto px-1">
           <div className="grid gap-5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -691,7 +746,11 @@ export function CardDialog({
             >
               閉じる
             </Button>
-            <Button type="button" onClick={handleSave} disabled={isSaving}>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving || isStale}
+            >
               {isSaving && <Loader2 className="animate-spin" />}保存
             </Button>
           </div>
