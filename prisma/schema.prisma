@@ -78,23 +78,31 @@ model CardGroup {
   cards     Card[]
 }
 
-/// 問題に添付する図版。本体はDBに保存し /api/images/[id] から配信する
+/// 問題に添付する図版のメタ情報。実体は storageKey で参照する
 model CardImage {
-  id        String   @id @default(cuid())
-  cardId    String
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  data      Bytes    // 画像データ本体
-  mimeType  String   // image/png など
-  width     Int?
-  height    Int?
-  size      Int      // バイト数
-  caption   String?  // キャプション・出典
-  order     Int      @default(0)
+  /// 画像の実体を指すキー。保存先を R2 へ移してもこの値は変わらない
+  storageKey String   @unique
+  mimeType   String   // image/png など
+  width      Int?
+  height     Int?
+  size       Int      // バイト数
+  caption    String?  // キャプション・出典
+  order      Int      @default(0)
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 
   @@index([cardId, order])
+}
+
+/// 画像の実体。Cloudflare へ移行する際は、このテーブルの代わりに R2 を使う
+model ImageBlob {
+  key       String   @id
+  data      Bytes
+  createdAt DateTime @default(now())
 }
 
 model Tag {

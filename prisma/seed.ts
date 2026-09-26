@@ -194,6 +194,7 @@ async function main() {
 
   // 何度実行しても同じ状態になるよう、既存データを消してから投入する
   await prisma.cardImage.deleteMany();
+  await prisma.imageBlob.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.card.deleteMany();
   await prisma.cardGroup.deleteMany();
@@ -283,10 +284,12 @@ async function main() {
 
   if (figureCard) {
     const png = hrDiagramPng();
+    const storageKey = crypto.randomUUID();
+    await prisma.imageBlob.create({ data: { key: storageKey, data: png } });
     await prisma.cardImage.create({
       data: {
         cardId: figureCard.id,
-        data: png,
+        storageKey,
         mimeType: "image/png",
         width: 520,
         height: 380,

@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import {
+  createStorageKey,
+  deleteImage,
+  putImage,
+} from "@/lib/image-storage";
 import type { ActionResult } from "@/app/actions/cards";
 
 /** 受け付ける画像形式。SVG はスクリプトを埋め込めるため除外する */
@@ -48,18 +53,27 @@ export async function addCardImage(input: unknown): Promise<ActionResult> {
       select: { order: true },
     });
 
-    await prisma.cardImage.create({
-      data: {
-        cardId: data.cardId,
-        data: bytes,
-        mimeType: data.mimeType,
-        width: data.width ?? null,
-        height: data.height ?? null,
-        size: bytes.length,
-        caption: data.caption ?? null,
-        order: (last?.order ?? -1) + 1,
-      },
-    });
+    // 実体を先に保存し、メタ情報の登録に失敗したら実体も片付ける
+    const storageKey = createStorageKey();
+    await putImage(storageKey, bytes);
+
+    try {
+      await prisma.cardImage.create({
+        data: {
+          cardId: data.cardId,
+          storageKey,
+          mimeType: data.mimeType,
+          width: data.width ?? null,
+          height: data.height ?? null,
+          size: bytes.length,
+          caption: data.caption ?? null,
+          order: (last?.order ?? -1) + 1,
+        },
+      });
+    } catch (error) {
+      await deleteImage(storageKey);
+      throw error;
+    }
 
     revalidatePath("/");
     return { ok: true };
@@ -93,9 +107,13 @@ export async function updateImageCaption(input: unknown): Promise<ActionResult> 
 
 export async function deleteCardImage(imageId: string): Promise<ActionResult> {
   try {
-    await prisma.cardImage.delete({
-      where: { id: z.string().min(1).parse(imageId) },
+    const id = z.string().min(1).parse(imageId);
+    const image = await prisma.cardImage.delete({
+      where: { id },
+      select: { storageKey: true },
     });
+
+    await deleteImage(image.storageKey);
     revalidatePath("/");
     return { ok: true };
   } catch (error) {

@@ -5,6 +5,7 @@ import { CardStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import { deleteImages } from "@/lib/image-storage";
 import { requireCurrentUser } from "@/lib/session";
 
 const optionalText = z
@@ -138,61 +139,66 @@ export async function moveCard(input: unknown): Promise<ActionResult> {
   try {
     const { cardId, toStatus, toIndex } = moveCardSchema.parse(input);
 
-    await prisma.$transaction(async (tx) => {
-      const card = await tx.card.findUnique({
-        where: { id: cardId },
-        select: { id: true, status: true, groupId: true },
-      });
-      if (!card) throw new Error("カードが見つかりません");
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { id: true, status: true, groupId: true },
+    });
+    if (!card) return { ok: false, error: "カードが見つかりません" };
 
-      // セット（大問）に属するカードは常に一緒に移動する
-      const movingCards = card.groupId
-        ? await tx.card.findMany({
-            where: { groupId: card.groupId },
-            orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
-            select: { id: true, status: true },
-          })
-        : [{ id: card.id, status: card.status }];
+    // セット（大問）に属するカードは常に一緒に移動する
+    const movingCards = card.groupId
+      ? await prisma.card.findMany({
+          where: { groupId: card.groupId },
+          orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+          select: { id: true, status: true },
+        })
+      : [{ id: card.id, status: card.status }];
 
-      const movingIds = movingCards.map((member) => member.id);
-      const fromStatuses = new Set(movingCards.map((member) => member.status));
+    const movingIds = movingCards.map((member) => member.id);
+    const fromStatuses = new Set(movingCards.map((member) => member.status));
 
-      const destination = await tx.card.findMany({
-        where: { status: toStatus, id: { notIn: movingIds } },
+    const destination = await prisma.card.findMany({
+      where: { status: toStatus, id: { notIn: movingIds } },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+
+    const index = Math.min(toIndex, destination.length);
+    const nextIds = [
+      ...destination.slice(0, index).map((member) => member.id),
+      ...movingIds,
+      ...destination.slice(index).map((member) => member.id),
+    ];
+
+    // 移動元のカラムに残るカードも、あとで並び順を詰め直す
+    const sourceIds = new Map<string, string[]>();
+    for (const status of fromStatuses) {
+      if (status === toStatus) continue;
+      const source = await prisma.card.findMany({
+        where: { status, id: { notIn: movingIds } },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         select: { id: true },
       });
+      sourceIds.set(
+        status,
+        source.map((member) => member.id),
+      );
+    }
 
-      const index = Math.min(toIndex, destination.length);
-      const nextIds = [
-        ...destination.slice(0, index).map((member) => member.id),
-        ...movingIds,
-        ...destination.slice(index).map((member) => member.id),
-      ];
-
-      await tx.card.updateMany({
+    await prisma.$transaction([
+      prisma.card.updateMany({
         where: { id: { in: movingIds } },
         data: { status: toStatus },
-      });
-
-      // インタラクティブトランザクション内では順番に実行する
-      for (const [order, id] of nextIds.entries()) {
-        await tx.card.update({ where: { id }, data: { order } });
-      }
-
-      // 移動元のカラムに残ったカードの並び順を詰め直す
-      for (const status of fromStatuses) {
-        if (status === toStatus) continue;
-        const source = await tx.card.findMany({
-          where: { status },
-          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-          select: { id: true },
-        });
-        for (const [order, member] of source.entries()) {
-          await tx.card.update({ where: { id: member.id }, data: { order } });
-        }
-      }
-    });
+      }),
+      ...nextIds.map((id, order) =>
+        prisma.card.update({ where: { id }, data: { order } }),
+      ),
+      ...[...sourceIds.values()].flatMap((ids) =>
+        ids.map((id, order) =>
+          prisma.card.update({ where: { id }, data: { order } }),
+        ),
+      ),
+    ]);
 
     revalidatePath("/");
     return { ok: true };
@@ -201,7 +207,6 @@ export async function moveCard(input: unknown): Promise<ActionResult> {
   }
 }
 
-/** 完成したが出題には使わない問題として扱うかどうかを切り替える */
 export async function setCardExcluded(input: unknown): Promise<ActionResult> {
   try {
     const { cardId, excluded } = z
@@ -230,80 +235,89 @@ export async function linkCards(input: unknown): Promise<ActionResult> {
       return { ok: false, error: "同じカード同士はセットにできません" };
     }
 
-    await prisma.$transaction(async (tx) => {
-      const [card, target] = await Promise.all([
-        tx.card.findUnique({
-          where: { id: cardId },
-          select: { groupId: true, status: true, order: true },
-        }),
-        tx.card.findUnique({
-          where: { id: targetCardId },
-          select: { groupId: true },
-        }),
-      ]);
-      if (!card || !target) throw new Error("カードが見つかりません");
-
-      const groupId =
-        target.groupId ??
-        card.groupId ??
-        (await tx.cardGroup.create({ data: {} })).id;
-
-      const existing = await tx.card.findMany({
-        where: { groupId },
-        orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
-        select: { id: true, status: true },
-      });
-
-      const memberIds = existing.map((member) => member.id);
-      for (const id of [cardId, targetCardId]) {
-        if (!memberIds.includes(id)) memberIds.push(id);
-      }
-
-      const previousStatuses = new Set(existing.map((member) => member.status));
-      const targetStatus = await tx.card.findUnique({
+    const [card, target] = await Promise.all([
+      prisma.card.findUnique({
+        where: { id: cardId },
+        select: { groupId: true, status: true, order: true },
+      }),
+      prisma.card.findUnique({
         where: { id: targetCardId },
-        select: { status: true },
-      });
-      if (targetStatus) previousStatuses.add(targetStatus.status);
+        select: { groupId: true, status: true },
+      }),
+    ]);
+    if (!card || !target) return { ok: false, error: "カードが見つかりません" };
 
-      // 操作したカードのカラムへ全員を集め、上下に並べる
-      for (const [groupOrder, id] of memberIds.entries()) {
-        await tx.card.update({
-          where: { id },
-          data: { groupId, groupOrder, status: card.status },
-        });
-      }
+    const existingGroupId = target.groupId ?? card.groupId;
+    const groupId = existingGroupId ?? crypto.randomUUID();
 
-      const others = await tx.card.findMany({
-        where: { status: card.status, id: { notIn: memberIds } },
+    const existing = existingGroupId
+      ? await prisma.card.findMany({
+          where: { groupId: existingGroupId },
+          orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+          select: { id: true, status: true },
+        })
+      : [];
+
+    const memberIds = existing.map((member) => member.id);
+    for (const id of [cardId, targetCardId]) {
+      if (!memberIds.includes(id)) memberIds.push(id);
+    }
+
+    const previousStatuses = new Set([
+      ...existing.map((member) => member.status),
+      target.status,
+    ]);
+
+    // 操作したカードのカラムへ全員を集め、上下に並べる
+    const others = await prisma.card.findMany({
+      where: { status: card.status, id: { notIn: memberIds } },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+
+    const insertAt = Math.min(Math.max(card.order, 0), others.length);
+    const nextIds = [
+      ...others.slice(0, insertAt).map((member) => member.id),
+      ...memberIds,
+      ...others.slice(insertAt).map((member) => member.id),
+    ];
+
+    // 別カラムから集めた場合は、元のカラムの並び順を詰め直す
+    const sourceIds = new Map<string, string[]>();
+    for (const status of previousStatuses) {
+      if (status === card.status) continue;
+      const source = await prisma.card.findMany({
+        where: { status, id: { notIn: memberIds } },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         select: { id: true },
       });
+      sourceIds.set(
+        status,
+        source.map((member) => member.id),
+      );
+    }
 
-      const insertAt = Math.min(Math.max(card.order, 0), others.length);
-      const nextIds = [
-        ...others.slice(0, insertAt).map((member) => member.id),
-        ...memberIds,
-        ...others.slice(insertAt).map((member) => member.id),
-      ];
+    const operations: Prisma.PrismaPromise<unknown>[] = [
+      ...(existingGroupId
+        ? []
+        : [prisma.cardGroup.create({ data: { id: groupId } })]),
+      ...memberIds.map((id, groupOrder) =>
+        prisma.card.update({
+          where: { id },
+          data: { groupId, groupOrder, status: card.status },
+        }),
+      ),
+      ...nextIds.map((id, order) =>
+        prisma.card.update({ where: { id }, data: { order } }),
+      ),
+      ...[...sourceIds.values()].flatMap((ids) =>
+        ids.map((id, order) =>
+          prisma.card.update({ where: { id }, data: { order } }),
+        ),
+      ),
+    ];
 
-      for (const [order, id] of nextIds.entries()) {
-        await tx.card.update({ where: { id }, data: { order } });
-      }
-
-      // 別カラムから集めた場合は、元のカラムの並び順を詰め直す
-      for (const status of previousStatuses) {
-        if (status === card.status) continue;
-        const source = await tx.card.findMany({
-          where: { status },
-          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-          select: { id: true },
-        });
-        for (const [order, member] of source.entries()) {
-          await tx.card.update({ where: { id: member.id }, data: { order } });
-        }
-      }
-    });
+    await prisma.$transaction(operations);
 
     revalidatePath("/");
     return { ok: true };
@@ -322,38 +336,40 @@ export async function moveCardInGroup(input: unknown): Promise<ActionResult> {
       })
       .parse(input);
 
-    await prisma.$transaction(async (tx) => {
-      const card = await tx.card.findUnique({
-        where: { id: cardId },
-        select: { groupId: true },
-      });
-      if (!card?.groupId) throw new Error("セットに属していません");
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      select: { groupId: true },
+    });
+    if (!card?.groupId) return { ok: false, error: "セットに属していません" };
 
-      const members = await tx.card.findMany({
-        where: { groupId: card.groupId },
-        orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
-        select: { id: true, order: true },
-      });
+    const members = await prisma.card.findMany({
+      where: { groupId: card.groupId },
+      orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+      select: { id: true, order: true },
+    });
 
-      const index = members.findIndex((member) => member.id === cardId);
-      const swapWith = direction === "up" ? index - 1 : index + 1;
-      if (index === -1 || swapWith < 0 || swapWith >= members.length) return;
+    const index = members.findIndex((member) => member.id === cardId);
+    const swapWith = direction === "up" ? index - 1 : index + 1;
+    if (index === -1 || swapWith < 0 || swapWith >= members.length) {
+      return { ok: true };
+    }
 
-      // カラム内の位置（order）はそのままに、中身だけ入れ替える
-      const orders = members.map((member) => member.order);
-      const reordered = [...members];
-      [reordered[index], reordered[swapWith]] = [
-        reordered[swapWith],
-        reordered[index],
-      ];
+    // カラム内の位置（order）はそのままに、中身だけ入れ替える
+    const orders = members.map((member) => member.order);
+    const reordered = [...members];
+    [reordered[index], reordered[swapWith]] = [
+      reordered[swapWith],
+      reordered[index],
+    ];
 
-      for (const [position, member] of reordered.entries()) {
-        await tx.card.update({
+    await prisma.$transaction(
+      reordered.map((member, position) =>
+        prisma.card.update({
           where: { id: member.id },
           data: { groupOrder: position, order: orders[position] },
-        });
-      }
-    });
+        }),
+      ),
+    );
 
     revalidatePath("/");
     return { ok: true };
@@ -367,41 +383,50 @@ export async function unlinkCard(cardId: string): Promise<ActionResult> {
   try {
     const id = z.string().min(1).parse(cardId);
 
-    await prisma.$transaction(async (tx) => {
-      const card = await tx.card.findUnique({
-        where: { id },
-        select: { groupId: true },
-      });
-      if (!card?.groupId) return;
+    const card = await prisma.card.findUnique({
+      where: { id },
+      select: { groupId: true },
+    });
+    if (!card?.groupId) return { ok: true };
 
-      const groupId = card.groupId;
-      await tx.card.update({
+    const groupId = card.groupId;
+    const rest = await prisma.card.findMany({
+      where: { groupId, id: { not: id } },
+      orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+      select: { id: true },
+    });
+
+    // 残りが1枚だけになるならセット自体を解散する
+    const dissolve = rest.length <= 1;
+
+    // 種類の違う操作が混ざるため、型を明示してまとめて流す
+    const operations: Prisma.PrismaPromise<unknown>[] = [
+      prisma.card.update({
         where: { id },
         data: { groupId: null, groupOrder: 0 },
-      });
+      }),
+    ];
 
-      const rest = await tx.card.findMany({
-        where: { groupId },
-        orderBy: { groupOrder: "asc" },
-        select: { id: true },
-      });
-
-      if (rest.length <= 1) {
-        await tx.card.updateMany({
+    if (dissolve) {
+      operations.push(
+        prisma.card.updateMany({
           where: { groupId },
           data: { groupId: null, groupOrder: 0 },
-        });
-        await tx.cardGroup.delete({ where: { id: groupId } });
-        return;
-      }
+        }),
+        prisma.cardGroup.delete({ where: { id: groupId } }),
+      );
+    } else {
+      operations.push(
+        ...rest.map((member, groupOrder) =>
+          prisma.card.update({
+            where: { id: member.id },
+            data: { groupOrder },
+          }),
+        ),
+      );
+    }
 
-      for (const [groupOrder, member] of rest.entries()) {
-        await tx.card.update({
-          where: { id: member.id },
-          data: { groupOrder },
-        });
-      }
-    });
+    await prisma.$transaction(operations);
 
     revalidatePath("/");
     return { ok: true };
@@ -418,12 +443,21 @@ export async function deleteUsedCards(): Promise<
   ActionResult & { deleted?: number }
 > {
   try {
-    const result = await prisma.card.deleteMany({
-      where: { status: CardStatus.COMPLETED, excluded: false },
+    // 消えるカードの図版キーを先に控えておく
+    const images = await prisma.cardImage.findMany({
+      where: { card: { status: CardStatus.COMPLETED, excluded: false } },
+      select: { storageKey: true },
     });
 
-    // 所属カードが無くなったセットを掃除する
-    await prisma.cardGroup.deleteMany({ where: { cards: { none: {} } } });
+    const [result] = await prisma.$transaction([
+      prisma.card.deleteMany({
+        where: { status: CardStatus.COMPLETED, excluded: false },
+      }),
+      // 所属カードが無くなったセットを掃除する
+      prisma.cardGroup.deleteMany({ where: { cards: { none: {} } } }),
+    ]);
+
+    await deleteImages(images.map((image) => image.storageKey));
 
     revalidatePath("/");
     return { ok: true, deleted: result.count };
@@ -434,7 +468,16 @@ export async function deleteUsedCards(): Promise<
 
 export async function deleteCard(cardId: string): Promise<ActionResult> {
   try {
-    await prisma.card.delete({ where: { id: z.string().min(1).parse(cardId) } });
+    const id = z.string().min(1).parse(cardId);
+
+    const images = await prisma.cardImage.findMany({
+      where: { cardId: id },
+      select: { storageKey: true },
+    });
+
+    await prisma.card.delete({ where: { id } });
+    await deleteImages(images.map((image) => image.storageKey));
+
     revalidatePath("/");
     return { ok: true };
   } catch (error) {
