@@ -1,4 +1,4 @@
-# 作問カンバン（JAO）
+# 作問カンバン
 
 4択試験問題を **チームで共同作成** するためのカンバンボードです。
 アイデア出し → 問題作成（清書） → レビュー → 完成 までの流れを、ドラッグ＆ドロップで管理できます。
@@ -44,7 +44,7 @@ brew services start postgresql@17
 
 ```bash
 # 2. このアプリ用のデータベースを作る（初回のみ）
-/opt/homebrew/opt/postgresql@17/bin/createdb jao
+/opt/homebrew/opt/postgresql@17/bin/createdb sakumon
 ```
 
 ```bash
