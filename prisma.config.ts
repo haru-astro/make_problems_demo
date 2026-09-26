@@ -2,12 +2,19 @@ import "dotenv/config";
 import path from "node:path";
 import { defineConfig } from "prisma/config";
 
+import { normalizeDatabaseUrl } from "./src/lib/database-url";
+
+// 管理画面から貼った値にクォートなどが混ざっていても動くよう整える
+const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+const directUrl = normalizeDatabaseUrl(process.env.DIRECT_URL);
+
+if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
+
 // マイグレーション用の DIRECT_URL が未設定・空の場合は DATABASE_URL で代用する。
 // 設定漏れでデプロイ全体が止まるのを防ぐための保険で、本番では両方設定するのが望ましい。
-const directUrl = process.env.DIRECT_URL?.trim();
-const databaseUrl = process.env.DATABASE_URL?.trim();
-
-if (!directUrl && databaseUrl) {
+if (directUrl) {
+  process.env.DIRECT_URL = directUrl;
+} else if (databaseUrl) {
   process.env.DIRECT_URL = databaseUrl;
   console.warn(
     "[prisma] DIRECT_URL が設定されていないため DATABASE_URL で代用します。" +
