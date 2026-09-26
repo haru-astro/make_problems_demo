@@ -233,25 +233,23 @@ export function CardDialog({
             {/* 左: 問題本体 */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="card-title" className="text-foreground">
+                <Label htmlFor="card-title" className="text-sm font-bold">
                   タイトル・概要
                 </Label>
                 <Input
                   id="card-title"
                   value={form.title}
                   onChange={(event) => update("title", event.target.value)}
-                  className="h-11 text-base font-semibold"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="card-question" className="text-foreground">
+                <Label htmlFor="card-question" className="text-sm font-bold">
                   問題文
                 </Label>
                 <Textarea
                   id="card-question"
                   rows={4}
-                  className="text-[15px] font-medium leading-relaxed"
                   placeholder="例) 次のうち、恒星の進化に関する説明として正しいものはどれか。"
                   value={form.questionText}
                   onChange={(event) =>
@@ -262,7 +260,7 @@ export function CardDialog({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-foreground">
+                  <Label className="text-sm font-bold">
                     選択肢（ラジオボタンで正解を指定）
                   </Label>
                   {form.correctOptionIndex && (
@@ -315,7 +313,7 @@ export function CardDialog({
                         value={optionValues[index]}
                         placeholder={`選択肢 ${label}`}
                         onChange={(event) => update(key, event.target.value)}
-                        className="border-0 bg-transparent text-sm font-medium shadow-none focus-visible:ring-0"
+                        className="border-0 bg-transparent shadow-none focus-visible:ring-0"
                       />
                     </div>
                   );
@@ -323,12 +321,7 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="card-explanation"
-                  className="text-muted-foreground"
-                >
-                  解説・出典
-                </Label>
+                <Label htmlFor="card-explanation">解説・出典</Label>
                 <Textarea
                   id="card-explanation"
                   rows={3}
@@ -355,7 +348,7 @@ export function CardDialog({
             {/* 右: メタ情報とコメント */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground">ステータス</Label>
+                <Label>ステータス</Label>
                 <Select
                   value={card.status}
                   onValueChange={(value) =>
@@ -417,7 +410,7 @@ export function CardDialog({
               )}
 
               <div className="space-y-2">
-                <Label className="text-muted-foreground">セット（大問）</Label>
+                <Label>セット（大問）</Label>
                 {members.length > 1 ? (
                   <div className="space-y-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2">
                     <p className="text-[11px] text-muted-foreground">
@@ -534,7 +527,7 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground">担当者</Label>
+                <Label>担当者</Label>
                 <Select
                   value={form.assignedToId}
                   onValueChange={(value) => update("assignedToId", value)}
@@ -554,7 +547,7 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-muted-foreground">タグ（分野・難易度など）</Label>
+                <Label>タグ（分野・難易度など）</Label>
                 <TagInput
                   value={form.tagNames}
                   onChange={(next) => update("tagNames", next)}

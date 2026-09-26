@@ -84,8 +84,8 @@ export function BoardToolbar({
 
   return (
     <div className="space-y-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur sm:px-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-baseline gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-lg font-semibold tracking-tight">作問ボード</h1>
           <p className="text-xs text-muted-foreground">
             全 {totalCount} 問 ・ 完成 {completedCount} 問
@@ -94,12 +94,12 @@ export function BoardToolbar({
           </p>
         </div>
 
-        <Button onClick={onAddCard} className="shadow">
+        <Button onClick={onAddCard} className="w-full shadow sm:w-auto">
           <Plus />
           カードを追加
         </Button>
 
-        <div className="relative ml-auto">
+        <div className="relative w-full sm:ml-auto sm:w-52">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={filters.query}
@@ -107,74 +107,76 @@ export function BoardToolbar({
               onFiltersChange({ ...filters, query: event.target.value })
             }
             placeholder="タイトル・問題文を検索"
-            className="h-8 w-52 pl-8 text-xs"
+            className="h-8 w-full pl-8 text-xs"
           />
         </div>
 
-        <Select
-          value={filters.assigneeId}
-          onValueChange={(value) =>
-            onFiltersChange({ ...filters, assigneeId: value })
-          }
-        >
-          <SelectTrigger className="h-8 w-40 text-xs">
-            <SelectValue placeholder="担当者" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>担当者: すべて</SelectItem>
-            <SelectItem value={UNASSIGNED_FILTER}>担当者未定</SelectItem>
-            {users.map((user) => (
-              <SelectItem key={user.id} value={user.id}>
-                {user.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant={filters.incompleteOnly ? "default" : "outline"}
-          size="sm"
-          onClick={() =>
-            onFiltersChange({
-              ...filters,
-              incompleteOnly: !filters.incompleteOnly,
-            })
-          }
-        >
-          未完成のみ
-        </Button>
-
-        {hasFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onFiltersChange(EMPTY_FILTERS)}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={filters.assigneeId}
+            onValueChange={(value) =>
+              onFiltersChange({ ...filters, assigneeId: value })
+            }
           >
-            <X />
-            条件をクリア
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue placeholder="担当者" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>担当者: すべて</SelectItem>
+              <SelectItem value={UNASSIGNED_FILTER}>担当者未定</SelectItem>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant={filters.incompleteOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() =>
+              onFiltersChange({
+                ...filters,
+                incompleteOnly: !filters.incompleteOnly,
+              })
+            }
+          >
+            未完成のみ
           </Button>
-        )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onExportCsv}
-          disabled={completedCount === 0}
-          title="完成した問題を番号順に CSV で書き出します（図版は含まれません）"
-        >
-          <Download />
-          CSV出力
-        </Button>
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onFiltersChange(EMPTY_FILTERS)}
+            >
+              <X />
+              条件をクリア
+            </Button>
+          )}
 
-        <BulkDeleteDialog
-          completedCount={completedCount}
-          excludedCount={excludedCount}
-          onExportCsv={onExportCsv}
-        />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExportCsv}
+            disabled={completedCount === 0}
+            title="完成した問題を番号順に CSV で書き出します（図版は含まれません）"
+          >
+            <Download />
+            CSV出力
+          </Button>
 
-        <ThemeToggle />
+          <BulkDeleteDialog
+            completedCount={completedCount}
+            excludedCount={excludedCount}
+            onExportCsv={onExportCsv}
+          />
 
-        <MemberMenu users={users} currentUser={currentUser} />
+          <ThemeToggle />
+
+          <MemberMenu users={users} currentUser={currentUser} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -220,7 +222,7 @@ function AnswerBalance({
 
   if (total === 0) {
     return (
-      <span className="ml-auto text-[11px] text-muted-foreground">
+      <span className="text-[11px] text-muted-foreground sm:ml-auto">
         正解の分布: 完成問題がありません
       </span>
     );
@@ -229,7 +231,7 @@ function AnswerBalance({
   return (
     <div
       className={cn(
-        "ml-auto flex items-center gap-2 rounded-md px-2 py-1",
+        "flex flex-wrap items-center gap-2 rounded-md px-2 py-1 sm:ml-auto",
         biased && "bg-amber-500/10",
       )}
       title={
