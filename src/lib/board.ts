@@ -160,6 +160,77 @@ export function questionNumbers(
   return result;
 }
 
+/**
+ * ボード上でドラッグする単位。単独カードは1枚、セットは複数枚を束ねて
+ * 1つのカードのように扱う。
+ */
+export type BoardUnit = {
+  /** Draggable の識別子。セットは group: から始まる */
+  id: string;
+  groupId: string | null;
+  cards: BoardCard[];
+};
+
+/** カラム内のカードを、単独カード／セットの単位に畳む */
+export function buildUnits(cards: BoardCard[]): BoardUnit[] {
+  const sorted = [...cards].sort((a, b) => a.order - b.order);
+  const units: BoardUnit[] = [];
+  const seenGroups = new Set<string>();
+
+  for (const card of sorted) {
+    if (!card.groupId) {
+      units.push({ id: card.id, groupId: null, cards: [card] });
+      continue;
+    }
+    if (seenGroups.has(card.groupId)) continue;
+    seenGroups.add(card.groupId);
+
+    units.push({
+      id: `group:${card.groupId}`,
+      groupId: card.groupId,
+      cards: sorted
+        .filter((member) => member.groupId === card.groupId)
+        .sort((a, b) => a.groupOrder - b.groupOrder || a.order - b.order),
+    });
+  }
+
+  return units;
+}
+
+/**
+ * ドロップ先の位置（単位の並び）を、実データ上のカード位置へ変換する。
+ * フィルタで一部が隠れていても、セットが複数枚を占めていても正しい位置になる。
+ *
+ * @param columnCards そのカラムの全カード
+ * @param visibleCards 画面に出ているカード（フィルタ後）
+ * @param destinationIndex ドロップ先の単位のインデックス
+ * @param movingUnitId 動かしている単位のID
+ */
+export function unitInsertIndex(
+  columnCards: BoardCard[],
+  visibleCards: BoardCard[],
+  destinationIndex: number,
+  movingUnitId: string,
+) {
+  const fullUnits = buildUnits(columnCards).filter(
+    (unit) => unit.id !== movingUnitId,
+  );
+  const visibleUnits = buildUnits(visibleCards).filter(
+    (unit) => unit.id !== movingUnitId,
+  );
+
+  const totalCards = fullUnits.reduce((sum, u) => sum + u.cards.length, 0);
+  const anchor = visibleUnits[destinationIndex];
+  if (!anchor) return totalCards;
+
+  let index = 0;
+  for (const unit of fullUnits) {
+    if (unit.id === anchor.id) return index;
+    index += unit.cards.length;
+  }
+  return totalCards;
+}
+
 /** セットの中で一緒に扱うカードを取り出す（セット内の順に並べる） */
 export function groupMembers(cards: BoardCard[], groupId: string) {
   return cards

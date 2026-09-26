@@ -22,6 +22,7 @@ import {
   answerDistribution,
   isQuestionComplete,
   questionNumbers,
+  unitInsertIndex,
   type BoardCard,
   type BoardTag,
   type BoardUser,
@@ -119,7 +120,21 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
     };
 
     return Object.fromEntries(
-      STATUS_ORDER.map((status) => [status, grouped[status].filter(matches)]),
+      STATUS_ORDER.map((status) => {
+        const hit = grouped[status].filter(matches);
+        // セットは1問でも該当すれば、まとまりを崩さないよう全員表示する
+        const hitGroups = new Set(
+          hit.map((card) => card.groupId).filter(Boolean) as string[],
+        );
+        return [
+          status,
+          grouped[status].filter(
+            (card) =>
+              hit.includes(card) ||
+              (card.groupId !== null && hitGroups.has(card.groupId)),
+          ),
+        ];
+      }),
     ) as Grouped;
   }, [grouped, filters]);
 
@@ -145,23 +160,29 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
     );
   }
 
-  /** フィルタ表示中でも正しい位置に挿入できるよう、実データ上の index を求める */
+  /** ドラッグした単位（セット or 単独カード）の代表カードIDを得る */
+  function resolveUnitCardId(unitId: string) {
+    if (!unitId.startsWith("group:")) return unitId;
+    const groupId = unitId.slice("group:".length);
+    return (
+      cards
+        .filter((card) => card.groupId === groupId)
+        .sort((a, b) => a.groupOrder - b.groupOrder || a.order - b.order)[0]
+        ?.id ?? null
+    );
+  }
+
   function resolveInsertIndex(
     destStatus: CardStatus,
     destinationIndex: number,
-    movingIds: Set<string>,
+    movingUnitId: string,
   ) {
-    const fullIds = grouped[destStatus]
-      .filter((card) => !movingIds.has(card.id))
-      .map((card) => card.id);
-    const visibleIds = filtered[destStatus]
-      .filter((card) => !movingIds.has(card.id))
-      .map((card) => card.id);
-
-    const anchorId = visibleIds[destinationIndex];
-    if (!anchorId) return fullIds.length;
-    const index = fullIds.indexOf(anchorId);
-    return index === -1 ? fullIds.length : index;
+    return unitInsertIndex(
+      grouped[destStatus],
+      filtered[destStatus],
+      destinationIndex,
+      movingUnitId,
+    );
   }
 
   function applyMove(cardId: string, toStatus: CardStatus, toIndex: number) {
@@ -229,9 +250,11 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
     }
 
     const toStatus = destination.droppableId as CardStatus;
-    const movingIds = movingIdsOf(draggableId);
-    const toIndex = resolveInsertIndex(toStatus, destination.index, movingIds);
-    applyMove(draggableId, toStatus, toIndex);
+    const cardId = resolveUnitCardId(draggableId);
+    if (!cardId) return;
+
+    const toIndex = resolveInsertIndex(toStatus, destination.index, draggableId);
+    applyMove(cardId, toStatus, toIndex);
   }
 
   function handleStatusChange(cardId: string, status: CardStatus) {

@@ -3,6 +3,8 @@
 import * as React from "react";
 import { CardStatus } from "@prisma/client";
 import {
+  ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   Link2,
@@ -51,6 +53,7 @@ import {
 import {
   deleteCard,
   linkCards,
+  moveCardInGroup,
   setCardExcluded,
   unlinkCard,
   updateCard,
@@ -230,19 +233,25 @@ export function CardDialog({
             {/* 左: 問題本体 */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="card-title">タイトル・概要</Label>
+                <Label htmlFor="card-title" className="text-foreground">
+                  タイトル・概要
+                </Label>
                 <Input
                   id="card-title"
                   value={form.title}
                   onChange={(event) => update("title", event.target.value)}
+                  className="h-11 text-base font-semibold"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="card-question">問題文</Label>
+                <Label htmlFor="card-question" className="text-foreground">
+                  問題文
+                </Label>
                 <Textarea
                   id="card-question"
                   rows={4}
+                  className="text-[15px] font-medium leading-relaxed"
                   placeholder="例) 次のうち、恒星の進化に関する説明として正しいものはどれか。"
                   value={form.questionText}
                   onChange={(event) =>
@@ -253,7 +262,9 @@ export function CardDialog({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>選択肢（ラジオボタンで正解を指定）</Label>
+                  <Label className="text-foreground">
+                    選択肢（ラジオボタンで正解を指定）
+                  </Label>
                   {form.correctOptionIndex && (
                     <button
                       type="button"
@@ -304,7 +315,7 @@ export function CardDialog({
                         value={optionValues[index]}
                         placeholder={`選択肢 ${label}`}
                         onChange={(event) => update(key, event.target.value)}
-                        className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+                        className="border-0 bg-transparent text-sm font-medium shadow-none focus-visible:ring-0"
                       />
                     </div>
                   );
@@ -312,7 +323,12 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="card-explanation">解説・出典</Label>
+                <Label
+                  htmlFor="card-explanation"
+                  className="text-muted-foreground"
+                >
+                  解説・出典
+                </Label>
                 <Textarea
                   id="card-explanation"
                   rows={3}
@@ -339,7 +355,7 @@ export function CardDialog({
             {/* 右: メタ情報とコメント */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label>ステータス</Label>
+                <Label className="text-muted-foreground">ステータス</Label>
                 <Select
                   value={card.status}
                   onValueChange={(value) =>
@@ -401,26 +417,62 @@ export function CardDialog({
               )}
 
               <div className="space-y-2">
-                <Label>セット（大問）</Label>
+                <Label className="text-muted-foreground">セット（大問）</Label>
                 {members.length > 1 ? (
                   <div className="space-y-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2">
                     <p className="text-[11px] text-muted-foreground">
                       この {members.length} 問は1つの大問として同じ問題番号になり、
-                      移動するときも一緒に動きます
+                      ボード上でも1枚のカードとして動きます。矢印で上下を入れ替えられます
                     </p>
                     <ul className="space-y-1">
                       {members.map((member, index) => (
                         <li
                           key={member.id}
                           className={cn(
-                            "flex items-center gap-1.5 text-xs",
-                            member.id === card.id && "font-medium",
+                            "flex items-center gap-1.5 rounded px-1 py-0.5 text-xs",
+                            member.id === card.id && "bg-background font-medium",
                           )}
                         >
                           <span className="text-muted-foreground">
                             ({index + 1})
                           </span>
-                          <span className="truncate">{member.title}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {member.title}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={isLinking || index === 0}
+                            aria-label="1つ上へ"
+                            className="rounded p-0.5 text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-30"
+                            onClick={() =>
+                              startLinking(async () => {
+                                const result = await moveCardInGroup({
+                                  cardId: member.id,
+                                  direction: "up",
+                                });
+                                if (!result.ok) setError(result.error);
+                              })
+                            }
+                          >
+                            <ChevronUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLinking || index === members.length - 1}
+                            aria-label="1つ下へ"
+                            className="rounded p-0.5 text-muted-foreground transition hover:bg-accent hover:text-foreground disabled:opacity-30"
+                            onClick={() =>
+                              startLinking(async () => {
+                                const result = await moveCardInGroup({
+                                  cardId: member.id,
+                                  direction: "down",
+                                });
+                                if (!result.ok) setError(result.error);
+                              })
+                            }
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -482,7 +534,7 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label>担当者</Label>
+                <Label className="text-muted-foreground">担当者</Label>
                 <Select
                   value={form.assignedToId}
                   onValueChange={(value) => update("assignedToId", value)}
@@ -502,7 +554,7 @@ export function CardDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label>タグ（分野・難易度など）</Label>
+                <Label className="text-muted-foreground">タグ（分野・難易度など）</Label>
                 <TagInput
                   value={form.tagNames}
                   onChange={(next) => update("tagNames", next)}

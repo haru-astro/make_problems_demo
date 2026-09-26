@@ -232,7 +232,10 @@ export async function linkCards(input: unknown): Promise<ActionResult> {
 
     await prisma.$transaction(async (tx) => {
       const [card, target] = await Promise.all([
-        tx.card.findUnique({ where: { id: cardId }, select: { groupId: true } }),
+        tx.card.findUnique({
+          where: { id: cardId },
+          select: { groupId: true, status: true, order: true },
+        }),
         tx.card.findUnique({
           where: { id: targetCardId },
           select: { groupId: true },
@@ -245,18 +248,110 @@ export async function linkCards(input: unknown): Promise<ActionResult> {
         card.groupId ??
         (await tx.cardGroup.create({ data: {} })).id;
 
-      const members = await tx.card.findMany({
+      const existing = await tx.card.findMany({
         where: { groupId },
-        orderBy: { groupOrder: "asc" },
-        select: { id: true },
+        orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+        select: { id: true, status: true },
       });
-      const ids = [...members.map((m) => m.id)];
+
+      const memberIds = existing.map((member) => member.id);
       for (const id of [cardId, targetCardId]) {
-        if (!ids.includes(id)) ids.push(id);
+        if (!memberIds.includes(id)) memberIds.push(id);
       }
 
-      for (const [groupOrder, id] of ids.entries()) {
-        await tx.card.update({ where: { id }, data: { groupId, groupOrder } });
+      const previousStatuses = new Set(existing.map((member) => member.status));
+      const targetStatus = await tx.card.findUnique({
+        where: { id: targetCardId },
+        select: { status: true },
+      });
+      if (targetStatus) previousStatuses.add(targetStatus.status);
+
+      // 操作したカードのカラムへ全員を集め、上下に並べる
+      for (const [groupOrder, id] of memberIds.entries()) {
+        await tx.card.update({
+          where: { id },
+          data: { groupId, groupOrder, status: card.status },
+        });
+      }
+
+      const others = await tx.card.findMany({
+        where: { status: card.status, id: { notIn: memberIds } },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        select: { id: true },
+      });
+
+      const insertAt = Math.min(Math.max(card.order, 0), others.length);
+      const nextIds = [
+        ...others.slice(0, insertAt).map((member) => member.id),
+        ...memberIds,
+        ...others.slice(insertAt).map((member) => member.id),
+      ];
+
+      for (const [order, id] of nextIds.entries()) {
+        await tx.card.update({ where: { id }, data: { order } });
+      }
+
+      // 別カラムから集めた場合は、元のカラムの並び順を詰め直す
+      for (const status of previousStatuses) {
+        if (status === card.status) continue;
+        const source = await tx.card.findMany({
+          where: { status },
+          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+          select: { id: true },
+        });
+        for (const [order, member] of source.entries()) {
+          await tx.card.update({ where: { id: member.id }, data: { order } });
+        }
+      }
+    });
+
+    revalidatePath("/");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** セットの中での上下の並びを入れ替える */
+export async function moveCardInGroup(input: unknown): Promise<ActionResult> {
+  try {
+    const { cardId, direction } = z
+      .object({
+        cardId: z.string().min(1),
+        direction: z.enum(["up", "down"]),
+      })
+      .parse(input);
+
+    await prisma.$transaction(async (tx) => {
+      const card = await tx.card.findUnique({
+        where: { id: cardId },
+        select: { groupId: true },
+      });
+      if (!card?.groupId) throw new Error("セットに属していません");
+
+      const members = await tx.card.findMany({
+        where: { groupId: card.groupId },
+        orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+        select: { id: true, order: true },
+      });
+
+      const index = members.findIndex((member) => member.id === cardId);
+      const swapWith = direction === "up" ? index - 1 : index + 1;
+      if (index === -1 || swapWith < 0 || swapWith >= members.length) return;
+
+      // カラム内の位置（order）はそのままに、中身だけ入れ替える
+      const orders = members.map((member) => member.order);
+      const reordered = [...members];
+      [reordered[index], reordered[swapWith]] = [
+        reordered[swapWith],
+        reordered[index],
+      ];
+
+      for (const [position, member] of reordered.entries()) {
+        await tx.card.update({
+          where: { id: member.id },
+          data: { groupOrder: position, order: orders[position] },
+        });
       }
     });
 

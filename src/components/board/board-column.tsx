@@ -3,9 +3,14 @@
 import { Droppable } from "@hello-pangea/dnd";
 import type { CardStatus } from "@prisma/client";
 
-import { CardItem } from "@/components/board/card-item";
+import { CardUnit } from "@/components/board/card-item";
 import { cn } from "@/lib/utils";
-import { STATUS_META, type BoardCard, type QuestionNumber } from "@/lib/board";
+import {
+  STATUS_META,
+  buildUnits,
+  type BoardCard,
+  type QuestionNumber,
+} from "@/lib/board";
 
 type BoardColumnProps = {
   status: CardStatus;
@@ -24,6 +29,7 @@ export function BoardColumn({
   questionNumbers,
 }: BoardColumnProps) {
   const meta = STATUS_META[status];
+  const units = buildUnits(cards);
 
   return (
     <section className="flex w-[300px] shrink-0 flex-col rounded-xl bg-muted/50 p-2 sm:w-[320px]">
@@ -52,13 +58,13 @@ export function BoardColumn({
               snapshot.isDraggingOver && "bg-primary/5 ring-1 ring-primary/30",
             )}
           >
-            {cards.map((card, index) => (
-              <CardItem
-                key={card.id}
-                card={card}
+            {units.map((unit, index) => (
+              <CardUnit
+                key={unit.id}
+                unit={unit}
                 index={index}
                 onOpen={onOpenCard}
-                questionNumber={questionNumbers.get(card.id) ?? null}
+                questionNumbers={questionNumbers}
               />
             ))}
             {provided.placeholder}
