@@ -12,17 +12,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { deleteCompletedCards } from "@/app/actions/cards";
+import { deleteUsedCards } from "@/app/actions/cards";
 
 type BulkDeleteDialogProps = {
-  completedCount: number;
+  /** 完成かつ出題に使う問題の件数 */
+  usedCount: number;
+  /** 完成だが「使用しない」にしている件数 */
   excludedCount: number;
   onExportCsv: () => void;
 };
 
-/** 年度末に「完成」カラムを空にするための一括削除 */
+/** 年度末に、出題し終えた問題をまとめて片付けるための一括削除 */
 export function BulkDeleteDialog({
-  completedCount,
+  usedCount,
   excludedCount,
   onExportCsv,
 }: BulkDeleteDialogProps) {
@@ -47,17 +49,17 @@ export function BulkDeleteDialog({
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        disabled={completedCount === 0}
-        title="完成した問題をまとめて削除します"
+        disabled={usedCount === 0}
+        title="出題に使った問題をまとめて削除します"
       >
         <Trash2 />
-        完成を一括削除
+        使用した問題を一括削除
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>完成した問題をまとめて削除</DialogTitle>
+            <DialogTitle>使用した問題をまとめて削除</DialogTitle>
             <DialogDescription>
               年度末の整理用です。アイデア・問題作成中・レビュー中のカードは残ります。
             </DialogDescription>
@@ -68,10 +70,16 @@ export function BulkDeleteDialog({
               <p className="flex items-start gap-2 text-sm">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
                 <span>
-                  「完成」カラムの <strong>{completedCount} 問</strong>
-                  {excludedCount > 0 && `（うち使用しない ${excludedCount} 問）`}
+                  完成のうち出題に使う <strong>{usedCount} 問</strong>
                   を削除します。図版とコメントも一緒に消え、
                   <strong>元に戻せません</strong>。
+                  {excludedCount > 0 && (
+                    <>
+                      <br />
+                      「使用しない」にしている {excludedCount}{" "}
+                      問は、来年度に回せるよう残します。
+                    </>
+                  )}
                 </span>
               </p>
             </div>
@@ -116,14 +124,14 @@ export function BulkDeleteDialog({
               disabled={isPending}
               onClick={() =>
                 startTransition(async () => {
-                  const result = await deleteCompletedCards();
+                  const result = await deleteUsedCards();
                   if (!result.ok) setError(result.error);
                   else setOpen(false);
                 })
               }
             >
               {isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-              {completedCount} 問を削除する
+              {usedCount} 問を削除する
             </Button>
           </DialogFooter>
         </DialogContent>

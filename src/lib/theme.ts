@@ -1,4 +1,5 @@
-export const THEME_STORAGE_KEY = "jao-theme";
-
-/** 初期描画時のちらつきを防ぐためのインラインスクリプト */
-export const themeScript = `(function(){try{var s=localStorage.getItem("${THEME_STORAGE_KEY}");var d=s?s==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
+/**
+ * 端末（OS）のダークモード設定に合わせて配色を切り替えるスクリプト。
+ * 画面から手動で切り替える機能は持たないため、OSの設定だけを見る。
+ */
+export const themeScript = `(function(){try{document.documentElement.classList.toggle("dark",window.matchMedia("(prefers-color-scheme: dark)").matches);}catch(e){}})();`;

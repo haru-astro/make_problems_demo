@@ -410,13 +410,16 @@ export async function unlinkCard(cardId: string): Promise<ActionResult> {
   }
 }
 
-/** 年度末の整理用に「完成」カラムのカードをまとめて削除する */
-export async function deleteCompletedCards(): Promise<
+/**
+ * 年度末の整理用に、実際に出題した問題をまとめて削除する。
+ * 「使用しない」にした問題は来年度に回せるよう残す。
+ */
+export async function deleteUsedCards(): Promise<
   ActionResult & { deleted?: number }
 > {
   try {
     const result = await prisma.card.deleteMany({
-      where: { status: CardStatus.COMPLETED },
+      where: { status: CardStatus.COMPLETED, excluded: false },
     });
 
     // 所属カードが無くなったセットを掃除する

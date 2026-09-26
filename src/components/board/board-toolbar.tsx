@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/select";
 import { MemberMenu } from "@/components/board/member-menu";
 import { BulkDeleteDialog } from "@/components/board/bulk-delete-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import type { BoardTag, BoardUser } from "@/lib/board";
 import { OPTION_LABELS } from "@/lib/board";
@@ -99,19 +98,7 @@ export function BoardToolbar({
           カードを追加
         </Button>
 
-        <div className="relative w-full sm:ml-auto sm:w-52">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={filters.query}
-            onChange={(event) =>
-              onFiltersChange({ ...filters, query: event.target.value })
-            }
-            placeholder="タイトル・問題文を検索"
-            className="h-8 w-full pl-8 text-xs"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
           <Select
             value={filters.assigneeId}
             onValueChange={(value) =>
@@ -131,6 +118,18 @@ export function BoardToolbar({
               ))}
             </SelectContent>
           </Select>
+
+          <div className="relative min-w-0 flex-1 sm:w-52 sm:flex-none">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={filters.query}
+              onChange={(event) =>
+                onFiltersChange({ ...filters, query: event.target.value })
+              }
+              placeholder="タイトル・問題文を検索"
+              className="h-8 w-full pl-8 text-xs"
+            />
+          </div>
 
           <Button
             variant={filters.incompleteOnly ? "default" : "outline"}
@@ -168,12 +167,10 @@ export function BoardToolbar({
           </Button>
 
           <BulkDeleteDialog
-            completedCount={completedCount}
+            usedCount={completedCount - excludedCount}
             excludedCount={excludedCount}
             onExportCsv={onExportCsv}
           />
-
-          <ThemeToggle />
 
           <MemberMenu users={users} currentUser={currentUser} />
         </div>
