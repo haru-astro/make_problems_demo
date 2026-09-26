@@ -112,7 +112,7 @@ export type QuestionNumber = {
   major: number;
   /** 大問の中の小問番号（単独問題は null） */
   minor: number | null;
-  /** 表示用の文字列（例: 問3 / 問3-(1)） */
+  /** 表示用の文字列（例: 問3。セットの小問どうしは同じ番号になる） */
   label: string;
 };
 
@@ -153,11 +153,8 @@ export function questionNumbers(
     const minor = (minorByGroup.get(card.groupId) ?? 0) + 1;
     minorByGroup.set(card.groupId, minor);
 
-    result.set(card.id, {
-      major: groupMajor,
-      minor,
-      label: `問${groupMajor}-(${minor})`,
-    });
+    // セットは1つの大問なので、番号は小問どうしで共通にする
+    result.set(card.id, { major: groupMajor, minor, label: `問${groupMajor}` });
   }
 
   return result;

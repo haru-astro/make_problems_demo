@@ -134,17 +134,28 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
     (card) => card.status === CardStatus.COMPLETED && card.excluded,
   ).length;
 
+  /** 一緒に動くカード（セットなら全メンバー、単独ならそのカードだけ） */
+  function movingIdsOf(cardId: string) {
+    const target = cards.find((card) => card.id === cardId);
+    if (!target?.groupId) return new Set([cardId]);
+    return new Set(
+      cards
+        .filter((card) => card.groupId === target.groupId)
+        .map((card) => card.id),
+    );
+  }
+
   /** フィルタ表示中でも正しい位置に挿入できるよう、実データ上の index を求める */
   function resolveInsertIndex(
     destStatus: CardStatus,
     destinationIndex: number,
-    draggedId: string,
+    movingIds: Set<string>,
   ) {
     const fullIds = grouped[destStatus]
-      .filter((card) => card.id !== draggedId)
+      .filter((card) => !movingIds.has(card.id))
       .map((card) => card.id);
     const visibleIds = filtered[destStatus]
-      .filter((card) => card.id !== draggedId)
+      .filter((card) => !movingIds.has(card.id))
       .map((card) => card.id);
 
     const anchorId = visibleIds[destinationIndex];
@@ -158,33 +169,42 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
       const target = prev.find((card) => card.id === cardId);
       if (!target) return prev;
 
-      const fromStatus = target.status;
+      // セットのカードは全員まとめて動かす
+      const moving = target.groupId
+        ? prev
+            .filter((card) => card.groupId === target.groupId)
+            .sort((a, b) => a.groupOrder - b.groupOrder || a.order - b.order)
+        : [target];
+      const movingIds = new Set(moving.map((card) => card.id));
+      const fromStatuses = new Set(moving.map((card) => card.status));
+
       const destination = prev
-        .filter((card) => card.status === toStatus && card.id !== cardId)
+        .filter((card) => card.status === toStatus && !movingIds.has(card.id))
         .sort((a, b) => a.order - b.order);
 
       const index = Math.min(toIndex, destination.length);
       const nextDestination = [
-        ...destination.slice(0, index),
-        { ...target, status: toStatus },
-        ...destination.slice(index),
+        ...destination.slice(0, index).map((card) => card.id),
+        ...moving.map((card) => card.id),
+        ...destination.slice(index).map((card) => card.id),
       ];
 
       const orderById = new Map<string, number>();
-      nextDestination.forEach((card, order) => orderById.set(card.id, order));
+      nextDestination.forEach((id, order) => orderById.set(id, order));
 
-      if (fromStatus !== toStatus) {
+      for (const status of fromStatuses) {
+        if (status === toStatus) continue;
         prev
-          .filter((card) => card.status === fromStatus && card.id !== cardId)
+          .filter((card) => card.status === status && !movingIds.has(card.id))
           .sort((a, b) => a.order - b.order)
           .forEach((card, order) => orderById.set(card.id, order));
       }
 
       return prev.map((card) => {
-        if (card.id === cardId) {
-          return { ...card, status: toStatus, order: orderById.get(cardId) ?? 0 };
-        }
         const order = orderById.get(card.id);
+        if (movingIds.has(card.id)) {
+          return { ...card, status: toStatus, order: order ?? card.order };
+        }
         return order === undefined ? card : { ...card, order };
       });
     });
@@ -209,12 +229,16 @@ export function Board({ cards: serverCards, users, tags, currentUser }: BoardPro
     }
 
     const toStatus = destination.droppableId as CardStatus;
-    const toIndex = resolveInsertIndex(toStatus, destination.index, draggableId);
+    const movingIds = movingIdsOf(draggableId);
+    const toIndex = resolveInsertIndex(toStatus, destination.index, movingIds);
     applyMove(draggableId, toStatus, toIndex);
   }
 
   function handleStatusChange(cardId: string, status: CardStatus) {
-    const toIndex = grouped[status].filter((card) => card.id !== cardId).length;
+    const movingIds = movingIdsOf(cardId);
+    const toIndex = grouped[status].filter(
+      (card) => !movingIds.has(card.id),
+    ).length;
     applyMove(cardId, status, toIndex);
   }
 

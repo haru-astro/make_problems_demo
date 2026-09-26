@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { UserAvatar } from "@/components/ui/avatar";
 import {
   Select,
@@ -359,39 +360,44 @@ export function CardDialog({
               </div>
 
               {card.status === "COMPLETED" && (
-                <button
-                  type="button"
-                  disabled={isLinking}
-                  onClick={() =>
-                    startLinking(async () => {
-                      const result = await setCardExcluded({
-                        cardId: card.id,
-                        excluded: !card.excluded,
-                      });
-                      if (!result.ok) setError(result.error);
-                    })
-                  }
+                <div
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition",
+                    "flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors",
                     card.excluded
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200"
-                      : "border-border hover:bg-accent",
+                      ? "border-amber-500/50 bg-amber-500/10"
+                      : "border-border",
                   )}
                 >
                   {card.excluded ? (
-                    <EyeOff className="size-4 shrink-0" />
+                    <EyeOff className="size-4 shrink-0 text-amber-700 dark:text-amber-300" />
                   ) : (
-                    <Eye className="size-4 shrink-0" />
+                    <Eye className="size-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="flex-1">
-                    {card.excluded
-                      ? "この問題は使用しません（採番とCSVから除外中）"
-                      : "この問題を使用しない"}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {card.excluded ? "戻す" : "除外"}
-                  </span>
-                </button>
+                  <div className="min-w-0 flex-1">
+                    <Label htmlFor="card-excluded" className="cursor-pointer">
+                      出題に使う
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      {card.excluded
+                        ? "採番とCSV出力から除外しています"
+                        : "採番とCSV出力の対象です"}
+                    </p>
+                  </div>
+                  <Switch
+                    id="card-excluded"
+                    checked={!card.excluded}
+                    disabled={isLinking}
+                    onCheckedChange={(checked) =>
+                      startLinking(async () => {
+                        const result = await setCardExcluded({
+                          cardId: card.id,
+                          excluded: !checked,
+                        });
+                        if (!result.ok) setError(result.error);
+                      })
+                    }
+                  />
+                </div>
               )}
 
               <div className="space-y-2">
@@ -399,7 +405,8 @@ export function CardDialog({
                 {members.length > 1 ? (
                   <div className="space-y-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2">
                     <p className="text-[11px] text-muted-foreground">
-                      この {members.length} 問は1つの大問として採番されます
+                      この {members.length} 問は1つの大問として同じ問題番号になり、
+                      移動するときも一緒に動きます
                     </p>
                     <ul className="space-y-1">
                       {members.map((member, index) => (

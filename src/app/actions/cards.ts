@@ -141,27 +141,37 @@ export async function moveCard(input: unknown): Promise<ActionResult> {
     await prisma.$transaction(async (tx) => {
       const card = await tx.card.findUnique({
         where: { id: cardId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, groupId: true },
       });
       if (!card) throw new Error("カードが見つかりません");
 
-      const fromStatus = card.status;
+      // セット（大問）に属するカードは常に一緒に移動する
+      const movingCards = card.groupId
+        ? await tx.card.findMany({
+            where: { groupId: card.groupId },
+            orderBy: [{ groupOrder: "asc" }, { order: "asc" }],
+            select: { id: true, status: true },
+          })
+        : [{ id: card.id, status: card.status }];
+
+      const movingIds = movingCards.map((member) => member.id);
+      const fromStatuses = new Set(movingCards.map((member) => member.status));
 
       const destination = await tx.card.findMany({
-        where: { status: toStatus, id: { not: cardId } },
+        where: { status: toStatus, id: { notIn: movingIds } },
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         select: { id: true },
       });
 
       const index = Math.min(toIndex, destination.length);
       const nextIds = [
-        ...destination.slice(0, index).map((c) => c.id),
-        cardId,
-        ...destination.slice(index).map((c) => c.id),
+        ...destination.slice(0, index).map((member) => member.id),
+        ...movingIds,
+        ...destination.slice(index).map((member) => member.id),
       ];
 
-      await tx.card.update({
-        where: { id: cardId },
+      await tx.card.updateMany({
+        where: { id: { in: movingIds } },
         data: { status: toStatus },
       });
 
@@ -170,14 +180,16 @@ export async function moveCard(input: unknown): Promise<ActionResult> {
         await tx.card.update({ where: { id }, data: { order } });
       }
 
-      if (fromStatus !== toStatus) {
+      // 移動元のカラムに残ったカードの並び順を詰め直す
+      for (const status of fromStatuses) {
+        if (status === toStatus) continue;
         const source = await tx.card.findMany({
-          where: { status: fromStatus },
+          where: { status },
           orderBy: [{ order: "asc" }, { createdAt: "asc" }],
           select: { id: true },
         });
-        for (const [order, c] of source.entries()) {
-          await tx.card.update({ where: { id: c.id }, data: { order } });
+        for (const [order, member] of source.entries()) {
+          await tx.card.update({ where: { id: member.id }, data: { order } });
         }
       }
     });

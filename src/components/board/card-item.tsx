@@ -130,10 +130,10 @@ export function CardItem({
               {card.groupId && (
                 <span
                   className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-300"
-                  title="他のカードとセット（大問）になっています"
+                  title="他のカードとセット（大問）です。移動すると一緒に動きます"
                 >
                   <Link2 className="size-3.5" />
-                  セット
+                  セット({card.groupOrder + 1})
                 </span>
               )}
               {card.images.length > 0 && (
