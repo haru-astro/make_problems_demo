@@ -73,7 +73,7 @@ PostgreSQL を止めたいときは `brew services stop postgresql@17` です。
    - プール経由（ホスト名に `-pooler` が付く方）→ `DATABASE_URL`
    - 直接接続 → `DIRECT_URL`（マイグレーション用）
 2. **GitHub にリポジトリを作って push する** — `.env` は `.gitignore` 済みなので公開されません
-3. **Vercel でリポジトリを取り込む** — Environment Variables に `DATABASE_URL` と `DIRECT_URL` を登録する
+3. **Vercel でリポジトリを取り込む** — Environment Variables に `DATABASE_URL` と `DIRECT_URL` を登録する（値を貼り忘れると `DIRECT_URL resolved to an empty string` でビルドが失敗します。環境変数を直した後は必ず Redeploy が必要です）
 4. **デプロイ** — `npm run build` が `prisma migrate deploy && next build` なので、push のたびにスキーマが本番へ自動反映されます
 5. **初回だけ** ローカルから本番 DB を指定して `npm run db:seed` を実行するか、画面からメンバーを登録する
 
