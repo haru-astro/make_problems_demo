@@ -71,7 +71,8 @@ PostgreSQL を止めたいときは `brew services stop postgresql@17` です。
 
 ## 本番公開（GitHub + Vercel + クラウド DB）
 
-アプリが見ているのは `.env` の接続先だけなので、**接続先を差し替えるだけ**で本番に移れます。
+アプリが見ているのは接続先の文字列だけなので、**接続先を差し替えるだけ**で本番に移れます。
+なお `.env` は `.gitignore` 済みで GitHub にも Vercel にも渡りません。本番の設定は Vercel の管理画面に登録した値が使われ、ローカルの `.env` とは無関係です。
 
 1. **クラウド DB を用意する** — [Neon](https://neon.tech) などで PostgreSQL を作成し、接続文字列を2種類コピーする
    - プール経由（ホスト名に `-pooler` が付く方）→ `DATABASE_URL`
@@ -79,7 +80,13 @@ PostgreSQL を止めたいときは `brew services stop postgresql@17` です。
 2. **GitHub にリポジトリを作って push する** — `.env` は `.gitignore` 済みなので公開されません
 3. **Vercel でリポジトリを取り込む** — Environment Variables に `DATABASE_URL` と `DIRECT_URL` を登録する（値を貼り忘れると `DIRECT_URL resolved to an empty string` でビルドが失敗します。環境変数を直した後は必ず Redeploy が必要です）
 4. **デプロイ** — `npm run build` が `prisma migrate deploy && next build` なので、push のたびにスキーマが本番へ自動反映されます
-5. **初回だけ** ローカルから本番 DB を指定して `npm run db:seed` を実行するか、画面からメンバーを登録する
+5. **初回だけ** デモデータを入れる。自分のパソコンから、そのコマンドのときだけ本番の接続先を指定して実行します（`.env` を書き換える必要はありません）
+
+```bash
+DATABASE_URL="本番の接続文字列" DIRECT_URL="本番の接続文字列" npm run db:seed
+```
+
+   データを入れずに、公開後の画面から「メンバー」を登録して使い始めても構いません。
 
 独自ドメインは Vercel のプロジェクト設定 → Domains から追加します。
 
